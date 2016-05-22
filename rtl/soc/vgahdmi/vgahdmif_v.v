@@ -85,30 +85,17 @@ always @(posedge pixclk)
 parameter synclen = 3; // >=3, bit length of the clock synchronizer shift register
 reg [synclen-1:0] clksync; /* fifo to clock synchronizer shift register */
 
-// signal: when to shift pixel data and when to get new data from the memory
-wire getbyte = CounterX[2+dbl_x:0] == 0;
+// fetch new data every pixel
+assign fetch_next = fetcharea;
 
-// fetch new data
-assign fetch_next = getbyte & fetcharea;
-
-reg [7:0] shift_red, shift_green, shift_blue, shift_bright;
+reg [7:0] shift_red, shift_green, shift_blue;
 always @(posedge pixclk)
     if(dbl_x == 0 || CounterX[0] == 0)
       begin
-        shift_red     <= getbyte != 0 ?    red_byte : shift_red[7:1];
-        shift_green   <= getbyte != 0 ?  green_byte : shift_green[7:1];
-        shift_blue    <= getbyte != 0 ?   blue_byte : shift_blue[7:1];
-        shift_bright  <= getbyte != 0 ? bright_byte : shift_bright[7:1];
+        shift_red     <= red_byte;
+        shift_green   <= green_byte;
+        shift_blue    <= blue_byte;
       end
-
-wire [7:0] colorValue[0:3];
-// todo: 2 same black colors, introduce a table
-// to have one gray other true black
-assign colorValue[0] = shift_red[0]    != 0 ? colorValue[3] : 0;
-assign colorValue[1] = shift_green[0]  != 0 ? colorValue[3] : 0;
-assign colorValue[2] = shift_blue[0]   != 0 ? colorValue[3] : 0;
-assign colorValue[3][7]   = shift_bright[0];
-assign colorValue[3][6:0] = 7'h7F;
 
 // test picture generator
 wire [7:0] W = {8{CounterX[7:0]==CounterY[7:0]}};
@@ -119,9 +106,9 @@ always @(posedge pixclk) test_green <= (CounterX[7:0] & {8{CounterY[6]}} | W) & 
 always @(posedge pixclk) test_blue <= CounterY[7:0] | W | A;
 
 // generate VGA output, mixing with test picture if enabled
-assign vga_r = DrawArea ? (test_picture ? test_red[7:0]  : colorValue[0][7:0]) : 0;
-assign vga_g = DrawArea ? (                                colorValue[1][7:0]) : 0;
-assign vga_b = DrawArea ? (test_picture ? test_blue[7:0] : colorValue[2][7:0]) : 0;
+assign vga_r = DrawArea ? (test_picture ? test_red[7:0]  :  red_byte[7:0]) : 0;
+assign vga_g = DrawArea ? (                               green_byte[7:0]) : 0;
+assign vga_b = DrawArea ? (test_picture ? test_blue[7:0] : blue_byte[7:0]) : 0;
 assign vga_hsync = hSync;
 assign vga_vsync = vSync;
 assign line_repeat = dbl_y ? vga_hsync & ~CounterY[0] : 0;
@@ -132,7 +119,7 @@ wire [9:0] TMDS_red, TMDS_green, TMDS_blue;
 TMDS_encoder_v encode_R
 (
   .clk(pixclk),
-  .VD(test_picture ? test_red : colorValue[0]),
+  .VD(test_picture ? test_red : red_byte[7:0]),
   .CD(2'b00),
   .VDE(DrawArea),
   .TMDS(TMDS_red)
@@ -140,7 +127,7 @@ TMDS_encoder_v encode_R
 TMDS_encoder_v encode_G
 (
   .clk(pixclk),
-  .VD(colorValue[1]),
+  .VD(green_byte[7:0]),
   .CD(2'b00),
   .VDE(DrawArea),
   .TMDS(TMDS_green)
@@ -148,7 +135,7 @@ TMDS_encoder_v encode_G
 TMDS_encoder_v encode_B
 (
   .clk(pixclk),
-  .VD(test_picture ? test_blue : colorValue[2]),
+  .VD(test_picture ? test_blue : blue_byte[7:0]),
   .CD({vSync,hSync}),
   .VDE(DrawArea),
   .TMDS(TMDS_blue)

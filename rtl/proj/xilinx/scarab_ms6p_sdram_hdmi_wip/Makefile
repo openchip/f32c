@@ -19,7 +19,7 @@ vfiles = \
 ../../../soc/vgahdmi/vgahdmif_v.v \
 
 vhdfiles = \
-../../../xilinx/scarab_ms6p_toplevel_sdram.vhd \
+../../../xilinx/scarab_ms6p_toplevel_sdram_wip.vhd \
 ../../../xilinx/pll_50M_112M5.vhd \
 ../../../xilinx/pll_50M_100M.vhd \
 ../../../xilinx/pll_50M_100M_25M_250M.vhd \
@@ -28,13 +28,14 @@ vhdfiles = \
 ../../../xilinx/pll_50M_250M_125M_25M.vhd \
 ../../../xilinx/pll_50M_250M_111M11_25M.vhd \
 ../../../xilinx/hdmi_out.vhd \
-../../../generic/glue_sdram.vhd \
+../../../generic/glue_sdram_wip.vhd \
 ../../../generic/bram.vhd \
 ../../../generic/boot_block_pack.vhd \
 ../../../generic/bootloader/boot_sio_mi32el.vhd \
 ../../../generic/bootloader/boot_sio_mi32eb.vhd \
 ../../../generic/bootloader/boot_sio_rv32el.vhd \
 ../../../generic/bram_true2p_1clk.vhd \
+../../../generic/bram_true2p_2clk.vhd \
 ../../../generic/bptrace.vhd \
 ../../../generic/reg1w2r.vhd \
 ../../../generic/bram_video.vhd \
@@ -68,6 +69,7 @@ vhdfiles = \
 ../../../soc/fm/rds.vhd \
 ../../../soc/fm/bram_rds.vhd \
 ../../../soc/fm/message.vhd \
+../../../soc/vgahdmi/compositing_fifo.vhd \
 ../../../soc/vgahdmi/videofifo_bram.vhd \
 ../../../soc/vgahdmi/vgahdmif.vhd \
 ../../../soc/vgahdmi/VGA_textmode.vhd \
@@ -77,6 +79,5 @@ vhdfiles = \
 ../../../soc/vgahdmi/VGA_textmode_bram.vhd \
 ../../../soc/vgahdmi/TMDS_encoder.vhd \
 ../../../soc/vgahdmi/dvid_out.vhd \
-
 
 include ../include/xilinx.mk
