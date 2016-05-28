@@ -1,0 +1,708 @@
+--
+-- Copyright (c) 2013, 2016 Marko Zec, University of Zagreb
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions
+-- are met:
+-- 1. Redistributions of source code must retain the above copyright
+--    notice, this list of conditions and the following disclaimer.
+-- 2. Redistributions in binary form must reproduce the above copyright
+--    notice, this list of conditions and the following disclaimer in the
+--    documentation and/or other materials provided with the distribution.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+-- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+-- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+-- ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+-- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+-- OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+-- HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+-- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+-- OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+-- SUCH DAMAGE.
+--
+-- $Id$
+--
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+library xp2;
+use xp2.components.all;
+
+
+entity bram is
+    generic(
+	C_bram_size: integer; -- in KBytes
+	C_arch: integer; -- ARCH_MI32 or ARCH_RV32
+	C_big_endian: boolean;
+	C_boot_spi: boolean;
+	C_write_protect_bootloader: boolean := true
+    );
+    port(
+	clk: in std_logic;
+	imem_addr_strobe: in std_logic;
+	imem_data_ready: out std_logic;
+	imem_addr: in std_logic_vector(31 downto 2);
+	imem_data_out: out std_logic_vector(31 downto 0);
+	dmem_addr_strobe: in std_logic;
+	dmem_data_ready: out std_logic;
+	dmem_write: in std_logic;
+	dmem_byte_sel: in std_logic_vector(3 downto 0);
+	dmem_addr: in std_logic_vector(31 downto 2);
+	dmem_data_in: in std_logic_vector(31 downto 0);
+	dmem_data_out: out std_logic_vector(31 downto 0)
+    );
+end bram;
+
+architecture Behavioral of bram is
+    signal dmem_data_read, dmem_write_out: std_logic_vector(31 downto 0);
+    signal dmem_bram_cs, we: std_logic;
+    signal byte_en: std_logic_vector(3 downto 0);
+    signal addr: std_logic_vector(10 downto 2);
+begin
+	
+    dmem_data_out <= dmem_data_read; -- shut up compiler errors
+    dmem_write_out <= dmem_data_in;
+    dmem_bram_cs <= dmem_addr_strobe;
+    dmem_data_ready <= '1';
+
+    G_2k:
+    if C_bram_size = 2 generate
+    we <= dmem_addr_strobe and dmem_write;
+    byte_en <= "1111" when we = '0' else dmem_byte_sel;
+    addr <= dmem_addr(10 downto 2) when dmem_addr_strobe = '1'
+      else imem_addr(10 downto 2);
+    imem_data_ready <= not dmem_addr_strobe;
+    imem_data_out <= dmem_data_read;
+    ram_2_0: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 18, DATA_WIDTH_A => 18,
+	INITVAL_00 => "0x048031FEFE158021F68015EBF00014048020000304EBD1FEE8000001F02101000000030781D10010",
+	INITVAL_01 => "0x048070005512228002F2068891000C078041000F048050040001800000560000004021158031FEF0",
+	INITVAL_02 => "0x02A8D0001D0480D000AA1222C002F31222B0000202A07000211222500003122261FEFF1222A00000",
+	INITVAL_03 => "0x0284000015056E2000020062B1F021000051940002AF800019002C60F02104818020000000A0E400",
+	INITVAL_04 => "0x0480A0002004889000010780C000200780400010048651FC00018000005604804004000001F03600",
+	INITVAL_05 => "0x022000000B06268000011000B1F6010000000000020A00000F002890502A140061FE100000C06643",
+	INITVAL_06 => "0x0180000076000000000001800000E304A8C0000104A8C1FEFF028EA00009100071F6000000000000",
+	INITVAL_07 => "0x06AA2100000780D1000F0000C0664302A801FEEC04A8C1FEFF000000000001000000400000000000",
+	INITVAL_08 => "0x028401FEFE17840000000480208000026A000004000441D024078050001007804100000004001021",
+	INITVAL_09 => "0x100021F60104EBD00018006E00000811EBF00014006A51D0250002000008000001F021048421FEFC",
+	INITVAL_0a => "0x15EB00001404EBD1FEE006082000FF006E000008100041F6000000000000020601FEFD0604300001",
+	INITVAL_0b => "0x0180000282048041F640000A011021018000028915EB10001815EBF0001C048041F6400008010021",
+	INITVAL_0c => "0x0040005021048041F64001800002820001005402048041F64001800002820001005802048050000B",
+	INITVAL_0d => "0x078051000F11EB00001411EBF0001C04805000FF0180000282048041F640048041F6400180000282",
+	INITVAL_0e => "0x15EB70002C04EBD1FEC804EBD000200100000266068A510000048041F64011EB1000180042006021",
+	INITVAL_0f => "0x15EB10001415EB20001815EBE0003015EBF0003415EB30001C15EB40002015EB50002415EB600028",
+	INITVAL_10 => "0x018000004F000110248204817000A004816000B104815000B004814000A1048130009115EB000010",
+	INITVAL_11 => "0x0284600003048060009002045000280480500081020800000B05844000920205300039140021FE10",
+	INITVAL_12 => "0x02054000370481E0000401000000AF0001102482028471FEF3004201202101000000860480700080",
+	INITVAL_13 => "0x020550003F000001002101000000C5000001E021028571FEEA0000000000022A0000050584D000A2",
+	INITVAL_14 => "0x11EB50002411EB60002811EB70002C11EBE00030004200202111EBF00034028561FEE40000000000",
+	INITVAL_15 => "0x018000004F04EBD00038006E00000811EB00001011EB10001411EB20001811EB30001C11EB400020",
+	INITVAL_16 => "0x0480C00004004000B02100011024820100000087000511102102EC01FEFC04EDE1FEFF0001111400",
+	INITVAL_17 => "0x02A801FEF804A8C1FEFF140081F600000000000002A401FEFD0622A00004100091F6010000B08C03",
+	INITVAL_18 => "0x0001010040000100EEC2026D21FEC000420100210100000086000110248201000000870000B0B400",
+	INITVAL_19 => "0x000001002104EDE0000101000000C50005010021142E200000006D10F0210040E10025018000004F",
+	INITVAL_1a => "0x100041F601006381F025100650000000010190400001018EC20005103021020521FEB40000002021",
+	INITVAL_1b => "0x0180000291048420000101000000D1000BF10021140051F6000000000000028C01FEFD0608600004",
+	INITVAL_1c => "0x0780C010000780B0403E0780A0666D00000060210000008021000110248201000000870042004021",
+	INITVAL_1d => "0x060A700004100051F60104A430140D0000019021048180000D0480F000530480E000030480D00001",
+	INITVAL_1e => "0x048191FEFF000000000002A200000400079090250000303403140031F6000000000000028E01FEFD",
+	INITVAL_1f => "0x0000000000008610001C0480700002048031FEFF04805000FF028601FEF304A630D83201000000EE",
+	INITVAL_20 => "0x06049000FF00002198C304804000FF000000402102620000020004C1902400000000000800209000",
+	INITVAL_21 => "0x140041FE1007084000F0070840000F010000020F00000000000222000003006290902A06639000FF",
+	INITVAL_22 => "0x0288F00005048891FEF60086100013100041F6000000000000026201FEEB0609900001100041F601",
+	INITVAL_23 => "0x020981FECC000000000002099000460000604403010000020F00000030210000002021048191FEFF",
+	INITVAL_24 => "0x01000000FE0000000000028401FEFD0604200004100021F601000000202102A201FEDC0508900020",
+	INITVAL_25 => "0x04807000020100000200048031FEFF04805000FF0000209200026200000505A3900004140041F600",
+	INITVAL_26 => "0x000490202502E20000030509900041048841FEE00100000238048821FED002840000030508200061",
+	INITVAL_27 => "0x0504900004020800000905E2400003048591FEF90286D0001104863000010008902025048841FEC9",
+	INITVAL_28 => "0x000000202101000000FE006A51D0250020000008000001F021002041D02407805000100780410000",
+	INITVAL_29 => "0x0000202040050A9000060286E00004048A500005010000024600002050400000000000022201FEFD",
+	INITVAL_2a => "0x000400602102A0000002000A31902A0286500006000000000002A201FEAB000E2070210100000246",
+	INITVAL_2b => "0x022201FE9E000670902A020801FEA00606400001026201FEA2000600502101000000FE0004008021",
+	INITVAL_2c => "0x04802000FF020C0000190000000000006E000008048C60000101000000FE140C2000000000000000",
+	INITVAL_2d => "0x0000A0840204807000FF048C61FEFF000000A021020601FEFD06283002001188C000001408200000",
+	INITVAL_2e => "0x048A500004158AA00000002280A02502A6000003060CB0000314087000000000C09C00020C00000D",
+	INITVAL_2f => "0x158A4000000022804025048C61FEFF010000026F0000000000022A01FEFD0628D002001188C00000",
+	INITVAL_30 => "0x006E00000806042000FF020601FEFD0604300200118820000014085000000000000000006E000008",
+	INITVAL_31 => "0x006E0000080000000000020A01FEFD06065002001188300000140820000104802000800000000000",
+	INITVAL_32 => "0x00000000000801110000000801002115EB10001815EBF0001C15EB00001404EBD1FEE00000000000",
+	INITVAL_33 => "0x048A50000101800002E800040040210001105E420608401EFF01800002BD04805006E80001104802",
+	INITVAL_34 => "0x048050000A01800002E80040004021028C000004004030602A0484308441078020000F0004011021",
+	INITVAL_35 => "0x078070000F004200502101800002E8000020448004805006E801800002E800004044800004004021",
+	INITVAL_36 => "0x1480C1F6020024B0C0210000C0B0C00000C0A0400484C0000102A2000004004080902A048E808441",
+	INITVAL_37 => "0x060A300001020A000007000000202104EBD00020006E00000811EB00001411EB10001811EBF0001C",
+	INITVAL_38 => "0x0000000000006E000008000040404001000002BE0000505042000440202100000000000206000002",
+	INITVAL_39 => "0x000A3050230008704026000A3050260000407EC30000503EC3000050A02B0204000008060C200001",
+	INITVAL_3a => "0x00005050400000000000030A00000A0000002021022000000C000A40802B000050A02B0008704023",
+	INITVAL_3b => "0x00005050420000A0A0420004A020250008504023000000000002A20000030000A0A04001000002D2",
+	INITVAL_3c => "0x0000000000006E00000800080020210000000000020C000002060C600002000850902B02A401FEF9",
+	INITVAL_3d => "0x000000000000000000000000000000000000000000000000000000000000000000602101000002C8",
+	INITVAL_3e => "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	INITVAL_3f => "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    )
+    port map (
+	DIA0 => dmem_write_out(0), DIA1 => dmem_write_out(1),
+	DIA2 => dmem_write_out(2), DIA3 => dmem_write_out(3),
+	DIA4 => dmem_write_out(4), DIA5 => dmem_write_out(5),
+	DIA6 => dmem_write_out(6), DIA7 => dmem_write_out(7),
+	DIA8 => '0',
+	DIA9 => dmem_write_out(8), DIA10 => dmem_write_out(9),
+	DIA11 => dmem_write_out(10), DIA12 => dmem_write_out(11),
+	DIA13 => dmem_write_out(12), DIA14 => dmem_write_out(13),
+	DIA15 => dmem_write_out(14), DIA16 => dmem_write_out(15),
+	DIA17 => '0', 
+	DOA0 => dmem_data_read(0), DOA1 => dmem_data_read(1),
+	DOA2 => dmem_data_read(2), DOA3 => dmem_data_read(3),
+	DOA4 => dmem_data_read(4), DOA5 => dmem_data_read(5),
+	DOA6 => dmem_data_read(6), DOA7 => dmem_data_read(7),
+	DOA8 => open,
+	DOA9 => dmem_data_read(8), DOA10 => dmem_data_read(9),
+	DOA11 => dmem_data_read(10), DOA12 => dmem_data_read(11),
+	DOA13 => dmem_data_read(12), DOA14 => dmem_data_read(13),
+	DOA15 => dmem_data_read(14), DOA16 => dmem_data_read(15),
+	DOA17 => open, 
+	ADA0 => byte_en(0), ADA1 => byte_en(1),
+	ADA2 => '0', ADA3 => '0', ADA4 => '0',
+	ADA5 => addr(2), ADA6 => addr(3),
+	ADA7 => addr(4), ADA8 => addr(5),
+	ADA9 => addr(6), ADA10 => addr(7),
+	ADA11 => addr(8), ADA12 => addr(9),
+	ADA13 => addr(10),
+	CEA => '1', CLKA => not clk, WEA => we,
+	CSA0 => '0', CSA1 => '0', CSA2 => '0', RSTA => '0',
+	DIB0 => dmem_write_out(16), DIB1 => dmem_write_out(17),
+	DIB2 => dmem_write_out(18), DIB3 => dmem_write_out(19),
+	DIB4 => dmem_write_out(20), DIB5 => dmem_write_out(21),
+	DIB6 => dmem_write_out(22), DIB7 => dmem_write_out(23),
+	DIB8 => '0',
+	DIB9 => dmem_write_out(24), DIB10 => dmem_write_out(25),
+	DIB11 => dmem_write_out(26), DIB12 => dmem_write_out(27),
+	DIB13 => dmem_write_out(28), DIB14 => dmem_write_out(29),
+	DIB15 => dmem_write_out(30), DIB16 => dmem_write_out(31),
+	DIB17 => '0', 
+	DOB0 => dmem_data_read(16), DOB1 => dmem_data_read(17),
+	DOB2 => dmem_data_read(18), DOB3 => dmem_data_read(19),
+	DOB4 => dmem_data_read(20), DOB5 => dmem_data_read(21),
+	DOB6 => dmem_data_read(22), DOB7 => dmem_data_read(23),
+	DOB8 => open,
+	DOB9 => dmem_data_read(24), DOB10 => dmem_data_read(25),
+	DOB11 => dmem_data_read(26), DOB12 => dmem_data_read(27),
+	DOB13 => dmem_data_read(28), DOB14 => dmem_data_read(29),
+	DOB15 => dmem_data_read(30), DOB16 => dmem_data_read(31),
+	DOB17 => open, 
+	ADB0 => byte_en(2), ADB1 => byte_en(3),
+	ADB2 => '0', ADB3 => '0', ADB4 => '1',
+	ADB5 => addr(2), ADB6 => addr(3),
+	ADB7 => addr(4), ADB8 => addr(5),
+	ADB9 => addr(6), ADB10 => addr(7),
+	ADB11 => addr(8), ADB12 => addr(9),
+	ADB13 => addr(10),
+	CEB => '1', CLKB => not clk, WEB => we,
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+    end generate; -- 2k
+
+    G_16k:
+    if C_bram_size = 16 generate
+    imem_data_ready <= '1';
+    ram_16_0: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x01E3C1E0000C0311F200162101F4030020000C000A410122001B432026F00A4CF00C101C04310230",
+	INITVAL_01 => "0x090041804819006000811E8CF04002020220042B0401911801080F8000D1030840B01C1C00408001",
+	INITVAL_02 => "0x11E001A81308227038F01F080090C0090C0028401E251140520E8F20626006081164901E40100210",
+	INITVAL_03 => "0x0182F1E62E1E0450600D082D11A63101CD10247102211000D402A0004241022510025F004010C470",
+	INITVAL_04 => "0x09239022590A61010031040FF00A401C0D4022C0180631E21F0AC3001611000FF006AF1E6F104800",
+	INITVAL_05 => "0x00AFF01A00080530600D05EF11A0001F20803C001D401042E1024A60161600C450C00D03C5802800",
+	INITVAL_06 => "0x02E101088C04200028A11E2801100115014142F1030121FA820001818800100D00020011ED000008",
+	INITVAL_07 => "0x00000000000000000000000000001801010044B90445300602000A1196B306C63076810100E04202"
+    )
+    port map (
+	DIA0 => dmem_write_out(0), DIA1 => dmem_write_out(1),
+	DIA2 => dmem_write_out(2), DIA3 => dmem_write_out(3),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(0), DOA1 => dmem_data_read(1),
+	DOA2 => dmem_data_read(2), DOA3 => dmem_data_read(3),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(0), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(0), DOB1 => imem_data_out(1),
+	DOB2 => imem_data_out(2), DOB3 => imem_data_out(3),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_1: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x0004E1E0400E0E01E00000000004140402100A000202002400034F0040F00BE0000A2F1F0101C401",
+	INITVAL_01 => "0x022330242205826008120021F108480488009000108280224203CF0000F0002010402F1E00004202",
+	INITVAL_02 => "0x1FE001E0000048805EF0086010221204423046E0064C21C00A060A81E4880122801231090AB17491",
+	INITVAL_03 => "0x0020F1FE3E1E0020000F0000200A000066205082120D2000F000404184B2040C200424098C211080",
+	INITVAL_04 => "0x0000F0202C0404E07A06000FF000001E0F0004D2180400042F01E1001C0003E000002F1F8F200400",
+	INITVAL_05 => "0x004F601E00000200000001EF21E0001E20001E00124A0144F20402001424080000880F05E2004410",
+	INITVAL_06 => "0x0002200211004C400024004E81DC8201C200480201C241F6E000021022E0000F00008001EF000000",
+	INITVAL_07 => "0x00000000000000000000000000002C000200002F088220004D08002004220442C184000004B08400"
+    )
+    port map (
+	DIA0 => dmem_write_out(4), DIA1 => dmem_write_out(5),
+	DIA2 => dmem_write_out(6), DIA3 => dmem_write_out(7),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(4), DOA1 => dmem_data_read(5),
+	DOA2 => dmem_data_read(6), DOA3 => dmem_data_read(7),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(0), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(4), DOB1 => imem_data_out(5),
+	DOB2 => imem_data_out(6), DOB3 => imem_data_out(7),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_2: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x0003F1E000000001E0B0000B0010F3000001C02B0008A0100200010000F0002000400F1F6001F000",
+	INITVAL_01 => "0x000000000001E010160000000036B11161A162C003681000B001E00160F0160001008F1E00010008",
+	INITVAL_02 => "0x1FEB01E0B60102011EFA000000000000000000F0000001E000000021E000000000000F0040000000",
+	INITVAL_03 => "0x0000F01EC01E0081560F016A800000100300040002000160F0170080F0F0000000100000EF00040A",
+	INITVAL_04 => "0x0000F0000F0000F03E00002F01200B000F0160F01E0020300F01E0B01E0B1E001000800180001008",
+	INITVAL_05 => "0x000F101E1000000000E0040F01E20000000000001F0F01F0000008001E81000000300F0008011000",
+	INITVAL_06 => "0x00000000001608000082010120622000200004080020F1E23400000000F0000F100000000F100000",
+	INITVAL_07 => "0x000000000000000000000000000001000000008F100000000110000000001008F1E0000000110000"
+    )
+    port map (
+	DIA0 => dmem_write_out(8), DIA1 => dmem_write_out(9),
+	DIA2 => dmem_write_out(10), DIA3 => dmem_write_out(11),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(8), DOA1 => dmem_data_read(9),
+	DOA2 => dmem_data_read(10), DOA3 => dmem_data_read(11),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(1), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(8), DOB1 => imem_data_out(9),
+	DOB2 => imem_data_out(10), DOB3 => imem_data_out(11),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_3: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x1103F1E000000001E0F0000F0004F3000001E001000FC00E1700000000F0000880002F1FE001FE08",
+	INITVAL_01 => "0x000000000001E0011E031000001EF005E021E02001E80000F801E001E0F01E0001C0FF1E0401C080",
+	INITVAL_02 => "0x1FEF01E0F400A1011EF8000000000000000020F00100F1E000000011F200000000000F0020000000",
+	INITVAL_03 => "0x0000F01E601E00403E0F01E0C000000043308202000081E0F01FE0C182F11000800E8010EF800205",
+	INITVAL_04 => "0x0000F0001F0200F01E00000F00800F000F01E2F01E0020021F01E0F01E0F1E000000400180201804",
+	INITVAL_05 => "0x004F001E000005000040080F51E00000000000001E8F01E404060C001E30020000040F020E01FC08",
+	INITVAL_06 => "0x00010000001EC550004400402000220002006808000220000201080000F0000F000000000F000000",
+	INITVAL_07 => "0x000000000000000000000000000030000100004F04A120005004001008520442302A000002004200"
+    )
+    port map (
+	DIA0 => dmem_write_out(12), DIA1 => dmem_write_out(13),
+	DIA2 => dmem_write_out(14), DIA3 => dmem_write_out(15),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(12), DOA1 => dmem_data_read(13),
+	DOA2 => dmem_data_read(14), DOA3 => dmem_data_read(15),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(1), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(12), DOB1 => imem_data_out(13),
+	DOB2 => imem_data_out(14), DOB3 => imem_data_out(15),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_4: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x05AC0180000000C19470010B00126C152C40A04F004B510C8A1BACB0EA6A0F0940A003064F21A00D",
+	INITVAL_01 => "0x024EF068560FAD00A8100A0F50084000800080050080003E4001A200800305A0F0A0020002008A40",
+	INITVAL_02 => "0x018800149B18010020E101A00024340AC7E01E600A0000E00D09C010E0070CC5500832002760A830",
+	INITVAL_03 => "0x002730A03012009066000EA3011EED196A0002000040F0A006090500022001C00042E0000200020B",
+	INITVAL_04 => "0x120491A69412094004020E03504094000020400910096000091F2140009408840000991244001802",
+	INITVAL_05 => "0x09060000DC0B48016EC014E60006C2040000C02000E04000000003500020052E5004000005000854",
+	INITVAL_06 => "0x0600D0001F196CC180880E0020A0400A000066200A00108051002011E0D000005064200040304A00",
+	INITVAL_07 => "0x0000000000000000000000000000000000000C500B4A5000A00A0000085706E340AA02000400A800"
+    )
+    port map (
+	DIA0 => dmem_write_out(16), DIA1 => dmem_write_out(17),
+	DIA2 => dmem_write_out(18), DIA3 => dmem_write_out(19),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(16), DOA1 => dmem_data_read(17),
+	DOA2 => dmem_data_read(18), DOA3 => dmem_data_read(19),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(2), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(16), DOB1 => imem_data_out(17),
+	DOB2 => imem_data_out(18), DOB3 => imem_data_out(19),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_5: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x14008100000000811C0000C0015000010000C00109C201F81010022004220048000000000B016001",
+	INITVAL_01 => "0x176BB176BB176B0140B2016B0000000000100010000A0176081768E00064016EB144040880A08004",
+	INITVAL_02 => "0x1100008400000100B8D1016EB176BB176BB056500A0000A0A40A201084000804010850002110221B",
+	INITVAL_03 => "0x00C0000C60020270000E140400200000000002020080B000C80066102A5001A051DA00022D200200",
+	INITVAL_04 => "0x090250CC880849801048000000043000044000281209000001110600049001080004230800004800",
+	INITVAL_05 => "0x144C001488154261900C000C00D0880180E180C004C8604C04080A6004E00146A00002000A000000",
+	INITVAL_06 => "0x1540B1D6BB008000840E00400000040000C0080414041100010028B176B01C0A6110001C8641100E",
+	INITVAL_07 => "0x00000000000000000000000000000001C80198840004800400000A001408150A00004C01C0000806"
+    )
+    port map (
+	DIA0 => dmem_write_out(20), DIA1 => dmem_write_out(21),
+	DIA2 => dmem_write_out(22), DIA3 => dmem_write_out(23),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(20), DOA1 => dmem_data_read(21),
+	DOA2 => dmem_data_read(22), DOA3 => dmem_data_read(23),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(2), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(20), DOB1 => imem_data_out(21),
+	DOB2 => imem_data_out(22), DOB3 => imem_data_out(23),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_6: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x0B8050A080180C50A8000220000200088CC09840096300A2400A8110A2110824C0980C098F40E08C",
+	INITVAL_01 => "0x1FEFF1FEFF1EE78088F219EF41884C048C0098041880C1FE401EE030000000E3F0600409843018C0",
+	INITVAL_02 => "0x0AA000A2000840800E7018E3F1FEFF1FEFF05E40000800801C00880084840880401800180440884F",
+	INITVAL_03 => "0x008440885808050000040005008844198C0000821888000040006000000000E800262C0003210080",
+	INITVAL_04 => "0x100F40880400E841084809044006D010040000580000010004088400060001088002330004006000",
+	INITVAL_05 => "0x182480021C098150000000840002C00800309000020000608000A0400A08010441000101031002CC",
+	INITVAL_06 => "0x0000707EFF0820008A24184C00980009824048C009800018400000F1FE7006000180400600018003",
+	INITVAL_07 => "0x00000000000000000000000000000800600000050000000A08000800200000000000000060800000"
+    )
+    port map (
+	DIA0 => dmem_write_out(24), DIA1 => dmem_write_out(25),
+	DIA2 => dmem_write_out(26), DIA3 => dmem_write_out(27),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(24), DOA1 => dmem_data_read(25),
+	DOA2 => dmem_data_read(26), DOA3 => dmem_data_read(27),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(3), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(24), DOB1 => imem_data_out(25),
+	DOB2 => imem_data_out(26), DOB3 => imem_data_out(27),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+
+    ram_16_7: DP16KB
+    generic map (
+	-- CSDECODE_B => "000", CSDECODE_A => "000",
+	WRITEMODE_B => "NORMAL", WRITEMODE_A => "NORMAL",
+	GSR => "ENABLED", RESETMODE => "SYNC", 
+	REGMODE_B => "NOREG", REGMODE_A => "NOREG",
+	DATA_WIDTH_B => 4, DATA_WIDTH_A => 4,
+	INITVAL_00 => "0x0660104000000020428002680020A0044330402002400020200249903299052330400A054A204003",
+	INITVAL_01 => "0x154AA154AA1442006480070820042000400040020040015420144301001310408000020362100630",
+	INITVAL_02 => "0x024A00268004000002200040811088110880101002000020120240002002024120241A000220442A",
+	INITVAL_03 => "0x00022042200401001401070200442206630000000040014013100800001000400140000001000000",
+	INITVAL_04 => "0x04222024020022200412040220022A00013100120201000002024080023814630002030602002004",
+	INITVAL_05 => "0x14020002380540107401004200268A04200040A00201302000002010020000412000010000000033",
+	INITVAL_06 => "0x062020108814000042020600004000040010043004000060200080A1542000013114200061311400",
+	INITVAL_07 => "0x00000000000000000000000000000000000026010000000200000100200000000000130000000001"
+    )
+    port map (
+	DIA0 => dmem_write_out(28), DIA1 => dmem_write_out(29),
+	DIA2 => dmem_write_out(30), DIA3 => dmem_write_out(31),
+	DIA4 => '0', DIA5 => '0', DIA6 => '0', DIA7 => '0',
+	DIA8 => '0', DIA9 => '0', DIA10 => '0', DIA11 => '0',
+	DIA12 => '0', DIA13 => '0', DIA14 => '0', DIA15 => '0',
+	DIA16 => '0', DIA17 => '0', 
+	DOA0 => dmem_data_read(28), DOA1 => dmem_data_read(29),
+	DOA2 => dmem_data_read(30), DOA3 => dmem_data_read(31),
+	DOA4 => open, DOA5 => open, DOA6 => open, DOA7 => open,
+	DOA8 => open, DOA9 => open, DOA10 => open, DOA11 => open,
+	DOA12 => open, DOA13 => open, DOA14 => open, DOA15 => open,
+	DOA16 => open, DOA17 => open, 
+	ADA0 => '0', ADA1 => '0',
+	ADA2 => dmem_addr(2), ADA3 => dmem_addr(3),
+	ADA4 => dmem_addr(4), ADA5 => dmem_addr(5),
+	ADA6 => dmem_addr(6), ADA7 => dmem_addr(7),
+	ADA8 => dmem_addr(8), ADA9 => dmem_addr(9),
+	ADA10 => dmem_addr(10), ADA11 => dmem_addr(11),
+	ADA12 => dmem_addr(12), ADA13 => dmem_addr(13),
+	CEA => dmem_bram_cs, CLKA => not clk, WEA => dmem_write,
+	CSA0 => not dmem_byte_sel(3), CSA1 => '0', CSA2 => '0',
+	RSTA => '0',
+	DIB0 => '0', DIB1 => '0', DIB2 => '0', DIB3 => '0', 
+	DIB4 => '0', DIB5 => '0', DIB6 => '0', DIB7 => '0', 
+	DIB8 => '0', DIB9 => '0', DIB10 => '0', DIB11 => '0', 
+	DIB12 => '0', DIB13 => '0', DIB14 => '0', DIB15 => '0', 
+	DIB16 => '0', DIB17 => '0',
+	DOB0 => imem_data_out(28), DOB1 => imem_data_out(29),
+	DOB2 => imem_data_out(30), DOB3 => imem_data_out(31),
+	DOB4 => open, DOB5 => open, DOB6 => open, DOB7 => open,
+	DOB8 => open, DOB9 => open, DOB10 => open, DOB11 => open,
+	DOB12 => open, DOB13 => open, DOB14 => open, DOB15 => open,
+	DOB16 => open, DOB17 => open, 
+	ADB0 => '0', ADB1 => '0',
+	ADB2 => imem_addr(2), ADB3 => imem_addr(3),
+	ADB4 => imem_addr(4), ADB5 => imem_addr(5),
+	ADB6 => imem_addr(6), ADB7 => imem_addr(7),
+	ADB8 => imem_addr(8), ADB9 => imem_addr(9),
+	ADB10 => imem_addr(10), ADB11 => imem_addr(11),
+	ADB12 => imem_addr(12), ADB13 => imem_addr(13),
+	CEB => imem_addr_strobe, CLKB => not clk, WEB => '0', 
+	CSB0 => '0', CSB1 => '0', CSB2 => '0', RSTB => '0'
+    );
+    end generate; -- 16k
+
+end Behavioral;

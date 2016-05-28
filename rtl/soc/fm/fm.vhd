@@ -39,6 +39,11 @@ use ieee.math_real.all; -- to calculate log2 bit size
 entity fm is
     generic (
         C_stereo: boolean := false;
+<<<<<<< HEAD
+=======
+        C_filter: boolean := false;
+        C_downsample: boolean := false; -- LO-FI LUT-saving option as default
+>>>>>>> upstream/master
         C_rds_msg_len: integer range 2 to 2048 := 273; -- allocates RAM for RDS binary message
         -- some useful values for C_rds_msg_len
         --  13 =        1*13 (CT)
@@ -64,6 +69,10 @@ entity fm is
 	fm_irq: out std_logic; -- interrupt request line (active level high)
 	clk_fmdds: in std_logic; -- DDS clock, must be > 2x max cw_freq, normally > 216 MHz
 	pcm_in_left, pcm_in_right: in ieee.numeric_std.signed(15 downto 0) := (others => '0'); -- PCM audio input
+<<<<<<< HEAD
+=======
+	pwm_out_left, pwm_out_right: out std_logic;
+>>>>>>> upstream/master
 	fm_antenna: out std_logic -- pyhsical output
     );
 end fm;
@@ -146,6 +155,11 @@ begin
       -- settings for super slow (100Hz debug) clock
       -- c_rds_clock_multiply => 1,
       -- c_rds_clock_divide => 812500,
+<<<<<<< HEAD
+=======
+      c_filter => C_filter,
+      c_downsample => C_downsample,
+>>>>>>> upstream/master
       c_stereo => C_stereo
     )
     port map (
@@ -154,8 +168,15 @@ begin
       addr => rds_addr,
       data => rds_data,
       pcm_in_left => pcm_in_left,
+<<<<<<< HEAD
       pcm_in_right => pcm_in_left,
       debug => from_fmrds,
+=======
+      pcm_in_right => pcm_in_right,
+      debug => from_fmrds,
+      out_l => pwm_out_left,
+      out_r => pwm_out_right,
+>>>>>>> upstream/master
       pcm_out => rds_pcm
     );
     fm_modulator: entity work.fmgen

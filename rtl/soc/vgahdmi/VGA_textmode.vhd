@@ -26,6 +26,10 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+<<<<<<< HEAD
+=======
+use ieee.math_real.all; -- to calculate log2 bit size
+>>>>>>> upstream/master
 
 entity VGA_textmode is
   generic (
@@ -38,6 +42,10 @@ entity VGA_textmode is
     C_vgatext_text: boolean;                        -- enable text character generation
     C_vgatext_reg_read: boolean;                    -- true: allow reading vgatext BRAM via register interface
     C_vgatext_text_fifo: boolean;                   -- true to use videofifo for text+attribute buffer, else BRAM
+<<<<<<< HEAD
+=======
+    C_vgatext_font_bram8: boolean;                  -- font in separate bram8 file (for Lattice XP2 BRAM or non power-of-two BRAM sizes)
+>>>>>>> upstream/master
     C_vgatext_char_height: integer;                 -- font cell height (may be different than font height for more vertical spacing)
     C_vgatext_font_height: integer;                 -- font data height 8 or 16
     C_vgatext_font_depth: integer;                  -- font char bits (7=128, 8=256 characters)
@@ -49,6 +57,10 @@ entity VGA_textmode is
     C_vgatext_cursor_blink: boolean;                -- enable hardware text cursor blinking
     C_vgatext_bitmap: boolean;                      -- true for bitmap from SRAM/SDRAM
     C_vgatext_bitmap_depth: integer;                -- bitmap bits per pixel (1, 2, 4, 8)
+<<<<<<< HEAD
+=======
+    C_vgatext_bitmap_fifo_data_width: integer := 32;-- fifo output bits
+>>>>>>> upstream/master
     C_vgatext_bitmap_fifo: boolean                  -- true to use videofifo for bitmap, else uses SRAM port
   );
   port (
@@ -73,7 +85,11 @@ entity VGA_textmode is
     textfifo_rewind_o:  out std_logic;                      -- "rewind" FIFO to replay last text-line data
 
     bitmap_addr_o:      out std_logic_vector(29 downto 2);  -- bitmap buffer address (or start address with FIFO)
+<<<<<<< HEAD
     bitmap_data_i:      in std_logic_vector(31 downto 0);   -- bitmap data from SRAM or FIFO
+=======
+    bitmap_data_i:      in std_logic_vector(C_vgatext_bitmap_fifo_data_width-1 downto 0);   -- bitmap data from SRAM or FIFO
+>>>>>>> upstream/master
     bitmap_strobe_o:    out std_logic;                      -- request data (or request next word with FIFO)
     bitmap_rewind_o:    out std_logic;                      -- "rewind" FIFO to replay last scan-line data
     bitmap_ready_i:     in std_logic;                       -- bitmap data ready (not used with FIFO)
@@ -149,6 +165,18 @@ architecture Behavioral of VGA_textmode is
   return r;
   end font_to_slv4;
 
+<<<<<<< HEAD
+=======
+  -- function integer ceiling log2
+  -- returns how many bits are needed to represent a number of states
+  -- example ceil_log2(255) = 8,  ceil_log2(256) = 8, ceil_log2(257) = 9
+  function ceil_log2(x: integer)
+    return integer is
+  begin
+    return integer(ceil((log2(real(x)+1.0E-6))-1.0E-6));
+  end ceil_log2;
+
+>>>>>>> upstream/master
   type video_mode_t is
   record
     pixel_clock_Hz:                             integer;    -- currently informational (not used)
@@ -229,6 +257,15 @@ architecture Behavioral of VGA_textmode is
   constant bytes_per_line:    integer   := (select_t_f(C_vgatext_finescroll, (4/bytes_per_char), 0)+(visible_width/char_width)) * bytes_per_char;
   constant font_size:         integer   := ((2**C_vgatext_font_depth) * C_vgatext_font_height)/1024;
   constant font_bits:         integer   := C_vgatext_font_depth + select_t_f(C_vgatext_font_height = 8, 3, 4);
+<<<<<<< HEAD
+=======
+  constant font_base_bit:     integer   := select_t_f(C_vgatext_font_bram8, 0, 2);
+
+  -- this will calculate log2, number of bits that can address the pixel bit depth and fifo data
+  constant C_vgatext_bitmap_depth_log2: integer := ceil_log2(C_vgatext_bitmap_depth);
+  constant C_vgatext_bitmap_fifo_data_width_log2: integer := ceil_log2(C_vgatext_bitmap_fifo_data_width);
+  constant C_vgatext_bitmap_strobe_point: signed(C_vgatext_bitmap_fifo_data_width_log2-C_vgatext_bitmap_depth_log2-1 downto 0) := (others => '1');
+>>>>>>> upstream/master
 
   -- constants for the VGA textmode register addresses (8 32-bit words)
   constant C_config_reg:      std_logic_vector  := "000";         -- 0xFFFFFB80
@@ -297,7 +334,11 @@ architecture Behavioral of VGA_textmode is
   signal  bitmap_start_addr:  std_logic_vector(29 downto 2);  -- bitmap start address
   signal  bitmap_addr:        unsigned(29 downto 2);              -- current bitmap address
   signal  bitmap_color:       std_logic_vector(23 downto 0);      -- monochrome bitmap color register (xRRGGBB)
+<<<<<<< HEAD
   signal  bitmap_data:        std_logic_vector(31 downto 0);      -- bit pattern shifting out for current bitmap word
+=======
+  signal  bitmap_data:        std_logic_vector(C_vgatext_bitmap_fifo_data_width-1 downto 0);      -- bit pattern shifting out for current bitmap word
+>>>>>>> upstream/master
   signal  bitmap_data_next:   std_logic_vector(31 downto 0);      -- bit pattern shifting out for current bitmap word
   signal  bitmap_strobe:      std_logic;                          -- request next bitmap word
 
@@ -592,8 +633,21 @@ begin
           textfifo_strobe_o <= '0';
           textfifo_rewind_o <= '0';
         end if;
+<<<<<<< HEAD
         if C_vgatext_bitmap then
           bitmap_strobe <= '0';
+=======
+        -- emard
+        -- trying to avoid such default signal settings
+        -- currently I removed this for special case
+        -- when fifo width equals pixel depth in order
+        -- not to break other code, in future
+        -- bitmap_strobe <= '0'; should be removed
+        if C_vgatext_bitmap_fifo_data_width /= C_vgatext_bitmap_depth then
+          if C_vgatext_bitmap then
+            bitmap_strobe <= '0';
+          end if;
+>>>>>>> upstream/master
         end if;
 
         -- handle BRAM register based reads
@@ -609,6 +663,13 @@ begin
 
         if vcount >= 0 then           -- if on a visible scan-line
           -- text character generation
+<<<<<<< HEAD
+=======
+          if tg_enable = '0' then
+            font_data <= (others => '0');
+            text_color <= (others => '0');
+          end if;
+>>>>>>> upstream/master
           if tg_enable = '1' AND shcount >= -8 AND vcount < ((visible_height/C_vgatext_char_height)*C_vgatext_char_height) then
             case shcount(2 downto 0) is
               when "100" =>             -- put text address on bus (if not using text FIFO)
@@ -646,6 +707,7 @@ begin
                   end case;
                 end if;
                 -- put font data address on BRAM bus (using variables so same cycle as is read)
+<<<<<<< HEAD
                 bram_addr_o(15 downto 10) <= font_start_addr;
                 if C_vgatext_font_height = 8 then
                   if char_y < C_vgatext_font_height * select_t_f(C_vgatext_font_linedouble, 2, 1) then
@@ -669,11 +731,60 @@ begin
                     when "11" => font_data_next <= bram_data_i(31 downto 24);
                     when others => null;
                   end case;
+=======
+                if C_vgatext_font_bram8 then
+                  bram_addr_o(15 downto 10) <= "100000";  -- bit 15 indicates 8-bit font BRAM (if C_vgatext_font_bram8)
+                else
+                  bram_addr_o(15 downto 10) <= font_start_addr;
+                end if;
+                if C_vgatext_font_height = 8 then
+                  if C_vgatext_font_bram8 then
+                    bram_addr_o(C_vgatext_font_depth+4 downto 2) <= char_data(C_vgatext_font_depth-1 downto 0) & std_logic_vector(char_y(select_t_f(C_vgatext_font_linedouble, 3, 2) downto select_t_f(C_vgatext_font_linedouble, 1, 0)));
+                  else
+                    bram_addr_o(C_vgatext_font_depth+2 downto 2) <= char_data(C_vgatext_font_depth-1 downto 0) & char_y(select_t_f(C_vgatext_font_linedouble, 3, 2));
+                  end if;
+                else
+                  if char_y < C_vgatext_font_height then
+                    if C_vgatext_font_bram8 then
+                      bram_addr_o(C_vgatext_font_depth+5 downto 2) <= char_data(C_vgatext_font_depth-1 downto 0) & std_logic_vector(char_y(3 downto 0));
+                    else
+                      bram_addr_o(C_vgatext_font_depth+3 downto 2) <= char_data(C_vgatext_font_depth-1 downto 0) & std_logic_vector(char_y(3 downto 2));
+                    end if;
+                  else
+                    if C_vgatext_font_bram8 then
+                      bram_addr_o(C_vgatext_font_depth+5 downto 2) <= char_data(C_vgatext_font_depth-1 downto 0) & "1111";
+                    else
+                      bram_addr_o(C_vgatext_font_depth+3 downto 2) <= char_data(C_vgatext_font_depth-1 downto 0) & "11";
+                    end if;
+                  end if;
+                end if;
+              when "110" =>               -- extract proper byte of font data from word read from BRAM
+                if char_y < select_t_f(C_vgatext_font_linedouble, C_vgatext_font_height*2, C_vgatext_font_height) then
+                  if C_vgatext_font_bram8 then
+                    font_data_next <= bram_data_i(7 downto  0);
+                  else
+                    case char_y(select_t_f(C_vgatext_font_linedouble, 2, 1) downto select_t_f(C_vgatext_font_linedouble, 1, 0)) is
+                      when "00" => font_data_next <= bram_data_i( 7 downto  0);
+                      when "01" => font_data_next <= bram_data_i(15 downto  8);
+                      when "10" => font_data_next <= bram_data_i(23 downto 16);
+                      when "11" => font_data_next <= bram_data_i(31 downto 24);
+                      when others => null;
+                    end case;
+                  end if;
+>>>>>>> upstream/master
                 else
                   if C_vgatext_font_height = 8 then
                     font_data_next <= (others => '0');          -- use blank between characters
                   else
+<<<<<<< HEAD
                     font_data_next <= bram_data_i(31 downto 24);  -- repeat last line of character
+=======
+                    if C_vgatext_font_bram8 then
+                      font_data_next <= bram_data_i(7 downto 0);  -- repeat last line of character
+                    else
+                      font_data_next <= bram_data_i(31 downto 24);  -- repeat last line of character
+                    end if;
+>>>>>>> upstream/master
                   end if;
                 end if;
 
@@ -707,6 +818,7 @@ begin
 
           -- bitmap generation
           bitmap_pix := (others => '0');
+<<<<<<< HEAD
           if bg_enable = '1' then
             bitmap_pix := bitmap_data(C_vgatext_bitmap_depth-1 downto 0);
             bitmap_data(31-C_vgatext_bitmap_depth downto 0) <= bitmap_data(31 downto C_vgatext_bitmap_depth); -- shift current bitmap data right
@@ -730,6 +842,47 @@ begin
               end if;
             end if;
           end if;
+=======
+          if C_vgatext_bitmap_fifo_data_width = C_vgatext_bitmap_depth then
+            -- special case: fifo width equal to pixel width
+            if bg_enable = '1' then
+              bitmap_pix := bitmap_data_i;
+              if hcount = -2 and vcount >= 0 then
+                bitmap_strobe <= '1';
+              end if;
+              if hcount = visible_width-2 then
+                bitmap_strobe <= '0';
+              end if;
+            end if; --. bg_enable
+          else
+            -- fifo width different than pixel depth
+            if bg_enable = '1' then
+              bitmap_pix := bitmap_data(C_vgatext_bitmap_depth-1 downto 0);
+              -- shift current bitmap data right
+              bitmap_data(C_vgatext_bitmap_fifo_data_width-1-C_vgatext_bitmap_depth downto 0) 
+               <= bitmap_data(C_vgatext_bitmap_fifo_data_width-1 downto C_vgatext_bitmap_depth);
+              if NOT C_vgatext_bitmap_fifo then
+                if hcount = -64 AND vcount = 0 then -- fetch first word early from SRAM
+                  bitmap_strobe <= '1';
+                end if;
+              end if;
+              if hcount >= -1 AND hcount < visible_width-1 then -- one cycle before needed
+                if hcount(C_vgatext_bitmap_fifo_data_width_log2-C_vgatext_bitmap_depth_log2-1 downto 0)
+                    = C_vgatext_bitmap_strobe_point
+                then
+                  -- load new bitmap data at last pixel of current bitmap data
+                  bitmap_strobe <= '1';
+                  if C_vgatext_bitmap_fifo then
+                    bitmap_data <= bitmap_data_i;
+                  else
+                    bitmap_data <= bitmap_data_next;
+                    bitmap_addr <= bitmap_addr + 1;
+                  end if;
+                end if;
+              end if;
+            end if; -- bg_enable
+          end if; -- end fifo width different than pixel depth
+>>>>>>> upstream/master
 
           -- prepare to output pixel
           fontpix := font_data(7);                -- current pixel from font
@@ -853,7 +1006,14 @@ begin
   -- vertical blank indicator
   vblank  <= '1' when vcount < 0 else '0';
   text_active_o <= '0' when vcount < 0 else tg_enable;
+<<<<<<< HEAD
   bitmap_active_o <= '0' when vcount < 0 else bg_enable;
+=======
+  -- bitmap_active_o activates compositing_fifo early
+  -- 3 scan ahead of time to start fetching
+  -- to prepare line data on time
+  bitmap_active_o <= '0' when vcount < -3 else bg_enable;
+>>>>>>> upstream/master
 
   -- output VGA/DVI/HDMI signals
   hsync_o <= hsync;

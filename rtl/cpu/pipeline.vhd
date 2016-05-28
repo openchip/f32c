@@ -1,5 +1,9 @@
 --
+<<<<<<< HEAD
 -- Copyright (c) 2008 - 2015 Marko Zec, University of Zagreb
+=======
+-- Copyright (c) 2008 - 2016 Marko Zec, University of Zagreb
+>>>>>>> upstream/master
 -- All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
@@ -40,6 +44,7 @@ entity pipeline is
     generic (
 	-- ISA options
 	C_arch: integer;
+<<<<<<< HEAD
 	C_big_endian: boolean;
 	C_mult_enable: boolean;
 	C_branch_likely: boolean;	-- MI32 only
@@ -47,6 +52,15 @@ entity pipeline is
 	C_movn_movz: boolean;		-- MI32 only
 	C_ll_sc: boolean;
 	C_exceptions: boolean;
+=======
+	C_big_endian: boolean;		-- MI32 only
+	C_mult_enable: boolean;		-- MI32 only
+	C_branch_likely: boolean;	-- MI32 only
+	C_sign_extend: boolean;		-- MI32 only
+	C_movn_movz: boolean := false;	-- MI32 only
+	C_ll_sc: boolean := false;
+	C_exceptions: boolean := false;
+>>>>>>> upstream/master
 	C_PC_mask: std_logic_vector(31 downto 0) := x"ffffffff";
 	C_init_PC: std_logic_vector(31 downto 0) := x"00000000";
 
@@ -65,7 +79,11 @@ entity pipeline is
 	C_load_aligner: boolean := true;
 	C_full_shifter: boolean := true;
 	C_reg_IF_PC: boolean := false;
+<<<<<<< HEAD
 	C_register_technology: string := "unknown";
+=======
+	C_regfile_synchronous_read: boolean := false;
+>>>>>>> upstream/master
 
 	-- debugging options
 	C_debug: boolean := false
@@ -83,6 +101,10 @@ entity pipeline is
 	dmem_data_in: in std_logic_vector(31 downto 0);
 	dmem_data_out: out std_logic_vector(31 downto 0);
 	dmem_data_ready: in std_logic;
+<<<<<<< HEAD
+=======
+	dmem_cache_wait: in std_logic := '0';
+>>>>>>> upstream/master
 	snoop_cycle: in std_logic;
 	snoop_addr: in std_logic_vector(31 downto 2);
 	flush_i_line, flush_d_line: out std_logic;
@@ -94,6 +116,10 @@ entity pipeline is
 	debug_out_data: out std_logic_vector(7 downto 0);
 	debug_out_strobe: out std_logic;
 	debug_out_busy: in std_logic;
+<<<<<<< HEAD
+=======
+	debug_clk_ena: out std_logic;
+>>>>>>> upstream/master
 	debug_debug: out std_logic_vector(7 downto 0);
 	debug_active: out std_logic
     );
@@ -397,7 +423,12 @@ begin
 
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if rising_edge(clk) and clk_enable = '1' then
+=======
+	if rising_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    R_reset <= reset;
 	    IF_ID_PC_next <= IF_PC_next and C_PC_mask(31 downto 2);
 	    IF_ID_PC <= IF_PC_ext_next;
@@ -540,7 +571,11 @@ begin
     -- three- or four-ported register file: 2(3) async reads, 1 sync write
     regfile: entity work.reg1w2r
     generic map (
+<<<<<<< HEAD
 	C_register_technology => C_register_technology,
+=======
+	C_synchronous_read => C_regfile_synchronous_read,
+>>>>>>> upstream/master
 	C_debug => C_debug
     )
     port map (
@@ -548,7 +583,11 @@ begin
 	rdd_addr => trace_addr(4 downto 0), wr_addr => MEM_WB_writeback_addr,
 	rd1_data => ID_reg1_data, rd2_data => ID_reg2_data,
 	rdd_data => reg_trace_data, wr_data => WB_writeback_data,
+<<<<<<< HEAD
 	wr_enable => MEM_WB_write_enable, clk => WB_clk
+=======
+	wr_enable => MEM_WB_write_enable, rd_clk => clk, wr_clk => WB_clk
+>>>>>>> upstream/master
     );
 
     --
@@ -558,10 +597,21 @@ begin
     --
     WB_clk <= clk when C_load_aligner else not clk;
     ID_reg1_eff_data <= IF_ID_EPC & "00" when C_arch = ARCH_RV32 and ID_reg1_pc
+<<<<<<< HEAD
       else ID_reg1_data when not C_load_aligner or
       ID_reg1_zero or ID_reg1_addr /= MEM_WB_writeback_addr
       else WB_writeback_data;
     ID_reg2_eff_data <= ID_reg2_data when not C_load_aligner or
+=======
+      else ID_reg1_data when (not C_load_aligner and
+      (not C_regfile_synchronous_read or
+      ID_reg1_zero or ID_reg1_addr /= MEM_WB_writeback_addr)) or
+      ID_reg1_zero or ID_reg1_addr /= MEM_WB_writeback_addr
+      else WB_writeback_data;
+    ID_reg2_eff_data <= ID_reg2_data when (not C_load_aligner and
+      (not C_regfile_synchronous_read or
+      ID_reg2_zero or ID_reg2_addr /= MEM_WB_writeback_addr)) or
+>>>>>>> upstream/master
       ID_reg2_zero or ID_reg2_addr /= MEM_WB_writeback_addr else
       WB_writeback_data;
 
@@ -625,14 +675,26 @@ begin
 
     -- compute jump target
     ID_jump_target <=
+<<<<<<< HEAD
       ID_reg1_data(31 downto 2) when C_arch = ARCH_MI32 and ID_jump_register
+=======
+      ID_reg1_eff_data(31 downto 2) when not C_load_aligner and
+      C_regfile_synchronous_read and C_arch = ARCH_MI32 and ID_jump_register
+      else ID_reg1_data(31 downto 2) when C_arch = ARCH_MI32
+      and ID_jump_register
+>>>>>>> upstream/master
       else ID_branch_target when C_branch_prediction and C_arch /= ARCH_RV32
       and not ID_jump_cycle
       else IF_ID_PC_4(31 downto 28) & IF_ID_instruction(25 downto 0);
 
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if rising_edge(clk) and clk_enable = '1' then
+=======
+	if rising_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if EX_running then
 		if not C_load_aligner and ID_EX_multicycle_lh_lb and
 		  not MEM_cancel_EX and not EX_MEM_EIP then
@@ -979,7 +1041,12 @@ begin
 
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if rising_edge(clk) and clk_enable = '1' then
+=======
+	if rising_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if C_ll_sc then
 		if ID_EX_ll then
 		    EX_MEM_ll_bit <= '1';
@@ -1192,7 +1259,12 @@ begin
     -- ===============================
     --
 
+<<<<<<< HEAD
     MEM_running <= (EX_MEM_mem_cycle = '0' or dmem_data_ready = '1')
+=======
+    MEM_running <= (dmem_cache_wait = '0' or not C_cache)
+      and (EX_MEM_mem_cycle = '0' or dmem_data_ready = '1')
+>>>>>>> upstream/master
       and not (not C_full_shifter and EX_MEM_shift_blocked);
 
     MEM_eff_data <= EX_MEM_logic_data when EX_MEM_logic_cycle = '1'
@@ -1213,7 +1285,12 @@ begin
     MEM_bpredict_we <= '1' when EX_MEM_branch_cycle else '0';
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if falling_edge(clk) and clk_enable = '1' then
+=======
+	if falling_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if EX_MEM_take_branch then
 		case EX_MEM_bpredict_score is
 		    when BP_STRONG_NOT_TAKEN =>
@@ -1242,7 +1319,12 @@ begin
 		end case;
 	    end if;
 	end if;
+<<<<<<< HEAD
 	if rising_edge(clk) and clk_enable = '1' then
+=======
+	if rising_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if EX_MEM_branch_cycle then
 		EX_MEM_branch_hist((C_bp_global_depth - 2) downto 0) <=
 		  EX_MEM_branch_hist((C_bp_global_depth - 1) downto 1);
@@ -1276,7 +1358,16 @@ begin
 
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if rising_edge(clk) and clk_enable = '1' then
+=======
+	if rising_edge(clk) and clk_enable = '1'
+	  and (MEM_running or (C_cache and dmem_cache_wait = '1')) then
+	    MEM_WB_mem_data <= MEM_data_in;
+	end if;
+	if rising_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if MEM_running then
 		if C_ll_sc and EX_MEM_sc then
 		    MEM_WB_mem_cycle <= '0';
@@ -1294,7 +1385,10 @@ begin
 		else
 		    MEM_WB_write_enable <= '1';
 		end if;
+<<<<<<< HEAD
 		MEM_WB_mem_data <= MEM_data_in;
+=======
+>>>>>>> upstream/master
 		if EX_MEM_op_major = OP_MAJOR_SHIFT then
 		    MEM_WB_ex_data <= MEM_from_shift;
 		elsif C_ll_sc and EX_MEM_sc then
@@ -1350,7 +1444,12 @@ begin
     mul_res <= R_mul_a * R_mul_b; -- infer asynchronous signed multiplier
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if falling_edge(clk) and clk_enable = '1' then
+=======
+	if falling_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if not EX_MEM_EIP and ID_EX_mult then
 		R_mul_a(31 downto 0) <= CONV_SIGNED(UNSIGNED(EX_eff_reg1), 32);
 		R_mul_b(31 downto 0) <= CONV_SIGNED(UNSIGNED(EX_eff_reg2), 32);
@@ -1484,7 +1583,12 @@ begin
     -- performance counters
     process(clk, clk_enable)
     begin
+<<<<<<< HEAD
 	if rising_edge(clk) and clk_enable = '1' then
+=======
+	if rising_edge(clk) and clk_enable = '1'
+	  and (not C_cache or dmem_cache_wait = '0') then
+>>>>>>> upstream/master
 	    if EX_MEM_branch_cycle then
 		D_b_instr <= D_b_instr + 1;
 	    end if;
@@ -1495,9 +1599,15 @@ begin
     end process;
 
     -- extra registers for reducing timing pressure on debug mux
+<<<<<<< HEAD
     process(clk)
     begin
 	if rising_edge(clk) then
+=======
+    process(clk, clk_enable)
+    begin
+	if rising_edge(clk) and clk_enable = '1' then
+>>>>>>> upstream/master
 	    R_d_imem_data_in <= imem_data_in;
 	end if;
     end process;
@@ -1508,5 +1618,10 @@ begin
 	clk_enable <= '1';
     end generate;
 
+<<<<<<< HEAD
+=======
+    debug_clk_ena <= clk_enable;
+
+>>>>>>> upstream/master
 end Behavioral;
 

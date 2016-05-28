@@ -1,5 +1,9 @@
 /*-
+<<<<<<< HEAD
  * Copyright (c) 2013 Marko Zec
+=======
+ * Copyright (c) 2013, 2016 Marko Zec
+>>>>>>> upstream/master
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,6 +40,7 @@
 #include "bas.h"
 
 
+<<<<<<< HEAD
 #define	SRAM_BASE	0x80000000
 #define	LOADER_BASE	0x800f8000
 
@@ -43,6 +48,29 @@
 #define	LOADADDR	SRAM_BASE
 
 
+=======
+#define	RAM_BASE	0x80000000
+#define	LOADER_BASE	0x8fff8000
+
+#define	LOAD_COOKIE	0x10adc0de
+#define	LOADADDR	RAM_BASE
+
+/*
+ * If compiling with EMBEDDED_LOADER first prepare loader_bin.h using:
+ * hexdump -v -e '1/1 "%u,\n"' ../../boot/fat/loader.bin > loader_bin.h
+ * and set LOADER_LEN to the exact length of the loader.bin file.
+ */
+#define EMBEDDED_LOADER
+#ifdef EMBEDDED_LOADER
+#define LOADER_LEN 9716
+static char loader_bin[LOADER_LEN] = {
+#include "loader_bin.h"
+};
+#endif
+
+
+#ifndef EMBEDDED_LOADER
+>>>>>>> upstream/master
 static void
 flash_read_block(char *buf, uint32_t addr, uint32_t len)
 {
@@ -55,6 +83,10 @@ flash_read_block(char *buf, uint32_t addr, uint32_t len)
 	spi_byte(IO_SPI_FLASH, 0xff); /* dummy byte, ignored */
 	spi_block_in(IO_SPI_FLASH, buf, len);
 }
+<<<<<<< HEAD
+=======
+#endif
+>>>>>>> upstream/master
 
 
 int
@@ -74,16 +106,24 @@ bauds(void)
 int
 bas_sleep(void)
 {
+<<<<<<< HEAD
 	uint64_t start, end, now;
 	int c;
 
 	start = tsc_hi;
 	start = (start << 32) + tsc_lo;
+=======
+	int c = 0;
+	int t, target;
+
+	RDTSC(target);
+>>>>>>> upstream/master
 
 	evalreal();
 	check();
 	if (res.f < ZERO)
 		error(33);	/* argument error */
+<<<<<<< HEAD
 	end = start + (uint64_t) (res.f * 1000.0 * freq_khz);
 
 	do {
@@ -94,6 +134,25 @@ bas_sleep(void)
 			break;
 #ifdef __mips__
 		asm("wait"); /* Low-power mode */
+=======
+
+	target += (int) (res.f * 1000.0 * freq_khz);
+
+	do {
+		__asm("di");
+		RDTSC(t);
+		if (t < tsc_lo)
+			tsc_hi++;
+		tsc_lo = t;
+		__asm("ei");
+
+		if(t - target > 0)
+			break;
+
+		c = sio_getchar(0);
+#ifdef __mips__
+//		asm("wait"); /* Low-power mode */
+>>>>>>> upstream/master
 #endif
 	} while (c != 3);
 
@@ -108,9 +167,18 @@ bas_exec(void)
 {
 	char buf[256];
 	STR st;
+<<<<<<< HEAD
 	uint32_t *up = (void *) SRAM_BASE;
 	uint8_t *cp = (void *) LOADER_BASE;
 	int res_sec, sec_size, len;
+=======
+	uint32_t *up = (void *) RAM_BASE;
+	uint8_t *cp = (void *) LOADER_BASE;
+	int len;
+#ifndef EMBEDDED_LOADER
+	int res_sec, sec_size;
+#endif
+>>>>>>> upstream/master
 
 	st = stringeval();
 	NULL_TERMINATE(st);
@@ -138,6 +206,15 @@ bas_exec(void)
 	*up = LOAD_COOKIE;
 	strcpy((void *) &up[1], buf);
 
+<<<<<<< HEAD
+=======
+	/* Clear loaders' BSS, just in case... */
+	bzero(cp, 32768);
+
+#ifdef EMBEDDED_LOADER
+	memcpy(cp, loader_bin, LOADER_LEN);
+#else /* !EMBEDDED_LOADER */
+>>>>>>> upstream/master
 	flash_read_block((void *) cp, 0, 512);
 	sec_size = (cp[0xc] << 8) + cp[0xb];
 	res_sec = (cp[0xf] << 8) + cp[0xe];
@@ -149,13 +226,24 @@ bas_exec(void)
 
 	len = sec_size * res_sec - 512;
 	flash_read_block((void *) cp, 512, len);
+<<<<<<< HEAD
+=======
+#endif
+>>>>>>> upstream/master
 
 #ifdef __mips__
 	__asm __volatile__(
 		".set noreorder;"
+<<<<<<< HEAD
 		"mtc0 $0, $12;"		/* Mask and disable all interrupts */
 		"lui $4, 0x8000;"       /* stack mask */
 		"lui $5, 0x0010;"       /* top of the initial stack */
+=======
+		"di;"			/* Disable all interrupts */
+		"mtc0 $0, $12;"		/* Mask all interrupts */
+		"lui $4, 0x8000;"       /* stack mask */
+		"lui $5, 0x1000;"       /* top of the initial stack */
+>>>>>>> upstream/master
 		"and $29, %0, $4;"      /* clear low bits of the stack */
 		"move $31, $0;"         /* return to ROM loader when done */
 		"jr %0;"

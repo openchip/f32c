@@ -33,7 +33,13 @@
 
 
 static const char *bootfiles[] = {
+<<<<<<< HEAD
 	"D:/frisc_ld.bin",
+=======
+#ifdef FRISC_LOAD
+	"D:/frisc_ld.bin",
+#endif
+>>>>>>> upstream/master
 	"D:/bootme.bin",
 	"/boot/kernel",
 	"/boot/basic.bin",
@@ -41,8 +47,13 @@ static const char *bootfiles[] = {
 };
 
 
+<<<<<<< HEAD
 #define	SRAM_BASE	0x80000000
 #define	SRAM_TOP	0x80100000
+=======
+#define	RAM_BASE	0x80000000
+#define	RAM_TOP		0x82000000
+>>>>>>> upstream/master
 
 #define LOAD_COOKIE	0x10adc0de
 
@@ -139,7 +150,15 @@ void
 main(void)
 {
 	int i;
+<<<<<<< HEAD
 	char *loadaddr = (void *) SRAM_BASE;
+=======
+	char *loadaddr = (void *) RAM_BASE;
+
+	/* Dummy open, just to force-mount SD card */
+	i = open("d:", O_RDONLY);
+	close(i);
+>>>>>>> upstream/master
 
 	if (*((int *) loadaddr) == LOAD_COOKIE)
 		loadaddr = load_bin(&loadaddr[4], 0);
@@ -155,20 +174,36 @@ main(void)
 	}
 
 	for (i = 0; loadaddr == NULL && bootfiles[i] != NULL; i++) {
+<<<<<<< HEAD
 		/* On FRISC systems drop to serial loader */
 		if (i)
 			OUTB(IO_CPU_RESET + 0xc, 0x1);
+=======
+#ifdef FRISC_LOAD
+		/* On FRISC systems drop to serial loader */
+		if (i)
+			OUTB(IO_CPU_RESET + 0xc, 0x1);
+#endif
+>>>>>>> upstream/master
 		loadaddr = load_bin(bootfiles[i], i);
 	}
 
 	if (loadaddr == NULL) {
+<<<<<<< HEAD
 		*((int *) SRAM_BASE) = 0;
+=======
+		*((int *) RAM_BASE) = 0;
+>>>>>>> upstream/master
 		printf("Exiting\n");
 		return;
 	}
 
 	/* Invalidate I-cache */
+<<<<<<< HEAD
 	for (i = 0; i < 8192; i += 4) {
+=======
+	for (i = 0; i < 32768; i += 4) {
+>>>>>>> upstream/master
 		__asm __volatile__(
 			"cache	0, 0(%0)"
 			: 
@@ -184,7 +219,11 @@ main(void)
 	__asm __volatile__(
 		".set noreorder;"
 		"lui $4, 0x8000;"	/* stack mask */
+<<<<<<< HEAD
 		"lui $5, 0x0010;"	/* top of the initial stack */
+=======
+		"lui $5, 0x1000;"	/* top of the initial stack */
+>>>>>>> upstream/master
                 "and $29, %0, $4;"	/* clear low bits of the stack */
                 "move $31, $0;"		/* return to ROM loader when done */
 		"jr %0;"

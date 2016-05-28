@@ -16,19 +16,32 @@ entity vgahdmi is
   generic(
     dbl_x          : integer := 0;  -- 0-normal X, 1-double X
     dbl_y          : integer := 0;  -- 0-normal X, 1-double X
+<<<<<<< HEAD
     mem_size_kb    : integer := 40; -- unused
     test_picture   : integer := 0   -- 0-don't, 1-show some test picture
+=======
+    mem_size_kb    : integer := 40 -- unused
+>>>>>>> upstream/master
   );
   port
   (
     clk_pixel  : in std_logic;  -- pixel clock, 25 MHz
     clk_tmds   : in std_logic := '0'; -- hdmi clock 250 MHz (or 0 if HDMI output is not used)
+<<<<<<< HEAD
+=======
+    test_picture : in std_logic := '0'; -- show test picture
+>>>>>>> upstream/master
     fetch_next : out std_logic; -- request FIFO to fetch next data
     red_byte, green_byte, blue_byte, bright_byte: in  std_logic_vector(7 downto 0); -- pixel data from FIFO
     vga_r, vga_g, vga_b:  out std_logic_vector(7 downto 0); -- VGA video signal
     vga_hsync, vga_vsync: out std_logic; -- VGA sync
+<<<<<<< HEAD
     line_repeat: out std_logic;
     TMDS_out_RGB : out std_logic_vector(2 downto 0) -- HDMI output
+=======
+    vga_vblank, vga_blank: out std_logic; -- Video blank
+    line_repeat: out std_logic
+>>>>>>> upstream/master
   );
 end vgahdmi;
 
@@ -36,18 +49,32 @@ architecture syn of vgahdmi is
   component vgahdmi_v
     generic (
       dbl_x          : integer := 0;  -- 0-normal X, 1-double X
+<<<<<<< HEAD
       dbl_y          : integer := 0;  -- 0-normal X, 1-double X
       test_picture   : integer := 0   -- 0-don't, 1-show some test picture
+=======
+      dbl_y          : integer := 0   -- 0-normal X, 1-double X
+>>>>>>> upstream/master
     );
     port (
       clk_pixel  : in std_logic;  -- pixel clock, 25 MHz
       clk_tmds   : in std_logic := '0'; -- hdmi clock 250 MHz (or 0 if HDMI output is not used)
+<<<<<<< HEAD
       fetch_next : out std_logic; -- request FIFO to fetch next data
       red_byte, green_byte, blue_byte, bright_byte: in  std_logic_vector(7 downto 0); -- pixel data from FIFO
       vga_r, vga_g, vga_b:  out std_logic_vector(7 downto 0); -- VGA video signal
       vga_hsync, vga_vsync: out std_logic; -- VGA sync, negative logic: active LOW
       line_repeat: out std_logic;
       TMDS_out_RGB : out std_logic_vector(2 downto 0) -- HDMI output
+=======
+      test_picture : in std_logic := '0'; -- show test picture
+      fetch_next : out std_logic; -- request FIFO to fetch next data
+      red_byte, green_byte, blue_byte, bright_byte: in  std_logic_vector(7 downto 0); -- pixel data from FIFO
+      vga_r, vga_g, vga_b:  out std_logic_vector(7 downto 0); -- VGA video signal
+      vga_hsync, vga_vsync: out std_logic; -- VGA sync, positive logic: active HIGH
+      vga_vblank, vga_blank: out std_logic; -- VGA vertical blank, positive logic: active HIGH
+      line_repeat: out std_logic
+>>>>>>> upstream/master
     );
   end component;
 
@@ -55,12 +82,20 @@ begin
   vgahdmi_inst: vgahdmi_v
   generic map(
     dbl_x => dbl_x,
+<<<<<<< HEAD
     dbl_y => dbl_y,
     test_picture => test_picture
+=======
+    dbl_y => dbl_y
+>>>>>>> upstream/master
   )
   port map(
       clk_pixel => clk_pixel,
       clk_tmds  => clk_tmds,
+<<<<<<< HEAD
+=======
+      test_picture => test_picture,
+>>>>>>> upstream/master
       fetch_next => fetch_next,
       red_byte => red_byte,
       green_byte => green_byte,
@@ -71,7 +106,13 @@ begin
       vga_b => vga_b,
       vga_hsync => vga_hsync,
       vga_vsync => vga_vsync,
+<<<<<<< HEAD
       line_repeat => line_repeat,
       TMDS_out_RGB => TMDS_out_RGB
+=======
+      vga_vblank => vga_vblank,
+      vga_blank => vga_blank,
+      line_repeat => line_repeat
+>>>>>>> upstream/master
   );
 end syn;

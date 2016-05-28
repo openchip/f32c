@@ -33,10 +33,13 @@ use IEEE.STD_LOGIC_ARITH.ALL;
 
 use work.f32c_pack.all;
 use work.sram_pack.all;
+<<<<<<< HEAD
 use work.boot_block_pack.all;
 use work.boot_sio_mi32el.all;
 use work.boot_sio_mi32eb.all;
 use work.boot_sio_rv32el.all;
+=======
+>>>>>>> upstream/master
 
 
 entity glue_sram is
@@ -64,7 +67,10 @@ entity glue_sram is
 	C_full_shifter: boolean := true;
 	C_result_forwarding: boolean := true;
 	C_load_aligner: boolean := true;
+<<<<<<< HEAD
 	C_register_technology: string := "lattice";
+=======
+>>>>>>> upstream/master
 
 	-- This may negatively influence timing closure:
 	C_movn_movz: boolean := false; -- true: +16 LUT4, -DMIPS, incomplete
@@ -75,8 +81,14 @@ entity glue_sram is
 	-- SoC configuration options
 	C_cpus: integer := 1;
 	C_bram_size: integer := 2;	-- 2 or 16 KBytes
+<<<<<<< HEAD
 	C_i_rom_only: boolean := true;
 	C_icache_size: integer := 8;	-- 0, 2, 4 or 8 KBytes
+=======
+	C_boot_spi: boolean := false;
+	C_i_rom_only: boolean := true;
+	C_icache_size: integer := 2;	-- 0, 2, 4 or 8 KBytes
+>>>>>>> upstream/master
 	C_dcache_size: integer := 2;	-- 0, 2, 4 or 8 KBytes
 	C_sram: boolean := true;
 	C_sram_wait_cycles: integer := 4; -- ISSI, OK do 87.5 MHz
@@ -127,6 +139,7 @@ architecture Behavioral of glue_sram is
     signal sram_ready: sram_ready_array;
     signal from_sram: std_logic_vector(31 downto 0);
 
+<<<<<<< HEAD
     type T_endian_select is array(boolean) of integer;
     constant select_big_endian: T_endian_select := (false => 0, true => 2);
 
@@ -141,6 +154,8 @@ architecture Behavioral of glue_sram is
 
     constant boot_block: boot_block_type := boot_block_select(C_arch + select_big_endian(C_big_endian));
 
+=======
+>>>>>>> upstream/master
     -- Block RAM
     signal bram_i_to_cpu, bram_d_to_cpu: std_logic_vector(31 downto 0);
     signal bram_i_ready, bram_d_ready, dmem_bram_enable: std_logic;
@@ -218,7 +233,10 @@ begin
 	C_branch_prediction => C_branch_prediction,
 	C_result_forwarding => C_result_forwarding,
 	C_load_aligner => C_load_aligner, C_full_shifter => C_full_shifter,
+<<<<<<< HEAD
 	C_register_technology => C_register_technology,
+=======
+>>>>>>> upstream/master
 	C_cop0_count => C_cop0_count, C_cop0_compare => C_cop0_compare,
 	C_cop0_config => C_cop0_config, C_exceptions => C_exceptions,
 	C_ll_sc => C_ll_sc,
@@ -395,8 +413,15 @@ begin
       else '0';
     bram: entity work.bram
     generic map (
+<<<<<<< HEAD
         boot_block => boot_block,
 	C_mem_size => C_bram_size
+=======
+	C_bram_size => C_bram_size,
+	C_arch => C_arch,
+	C_big_endian => C_big_endian,
+	C_boot_spi => C_boot_spi
+>>>>>>> upstream/master
     )
     port map (
 	clk => clk, imem_addr => imem_addr(0),

@@ -116,12 +116,20 @@ binboot(void)
 #ifdef __mips__
 			__asm __volatile__(
 			".set noreorder;"
+<<<<<<< HEAD
 			"lui $4, 0x8000;"	/* stack mask */
+=======
+			"lui $4, 0xF000;"	/* stack mask */
+>>>>>>> upstream/master
 			"lui $5, 0x1000;"	/* top of the initial stack */
 			"and $29, %0, $4;"	/* clr low bits of the stack */
 
 			/* "beqz $29, cache_skip;" */	/* skip cache invalidate for BRAM */
+<<<<<<< HEAD
 			"li $2, 0x10000;"	/* max. I-cache size: 64 K */
+=======
+			"li $2, 0x8000;"	/* max. I-cache size: 32 K */
+>>>>>>> upstream/master
 			"icache_flush:;"
 			"cache 0, 0($2);"
 			"bnez $2, icache_flush;"
@@ -130,7 +138,11 @@ binboot(void)
 
 			"move $31, $0;"		/* ra <- zero */
 			"jr %0;"
+<<<<<<< HEAD
 			"or $29, $29, $5;"	/* set stack */
+=======
+			"addu $29, $29, $5;"	/* set stack */
+>>>>>>> upstream/master
 			".set reorder;"
 			:
 			: "r" (base)

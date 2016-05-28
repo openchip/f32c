@@ -46,7 +46,11 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
+<<<<<<< HEAD
 use work.sram_pack.all;
+=======
+use work.sdram_pack.all;
+>>>>>>> upstream/master
 
 
 entity SDRAM_Controller is
@@ -67,12 +71,18 @@ entity SDRAM_Controller is
 	reset: in  STD_LOGIC;
 
 	-- To internal bus / logic blocks
+<<<<<<< HEAD
 	data_out: out std_logic_vector(31 downto 0); -- XXX rename to bus_out!
 	ready_out: out sram_ready_array; -- one bit per port
 	snoop_addr: out std_logic_vector(31 downto 2);
 	snoop_cycle: out std_logic;
 	-- Inbound multi-port bus connections
 	bus_in: in sram_port_array;
+=======
+	mpbus: inout sdram_port_array;
+	snoop_addr: out std_logic_vector(31 downto 2);
+	snoop_cycle: out std_logic;
+>>>>>>> upstream/master
 
 	-- SDRAM signals
 	sdram_clk: out STD_LOGIC;
@@ -137,7 +147,11 @@ architecture Behavioral of SDRAM_Controller is
    
     signal iob_data_next: std_logic_vector(15 downto 0) := (others => '0');
     signal R_from_sdram_prev, R_from_sdram: std_logic_vector(15 downto 0);
+<<<<<<< HEAD
     signal R_ready_out: sram_ready_array; -- one bit per port
+=======
+    signal R_ready_out: std_logic_vector(C_ports - 1 downto 0); -- one-hot
+>>>>>>> upstream/master
     attribute IOB of R_from_sdram: signal is "true";
    
     type fsm_state is (
@@ -177,6 +191,10 @@ architecture Behavioral of SDRAM_Controller is
     signal save_col: std_logic_vector(12 downto 0);
     signal save_data_in: std_logic_vector(31 downto 0);
     signal save_byte_enable: std_logic_vector( 3 downto 0);
+<<<<<<< HEAD
+=======
+    signal save_burst_len: std_logic_vector(2 downto 0);
+>>>>>>> upstream/master
 
     -- control when new transactions are accepted
     signal ready_for_new: std_logic := '0';
@@ -199,12 +217,20 @@ architecture Behavioral of SDRAM_Controller is
     constant end_of_row: natural := sdram_address_width-2;
     constant prefresh_cmd: natural := 10;
 
+<<<<<<< HEAD
     -- Bus interface signals (resolved from bus_in record via R_cur_port)
+=======
+    -- Bus interface signals (resolved from mpbus record via R_cur_port)
+>>>>>>> upstream/master
     signal addr_strobe: std_logic;			-- from CPU bus
     signal write: std_logic;				-- from CPU bus
     signal byte_sel: std_logic_vector(3 downto 0);	-- from CPU bus
     signal addr: std_logic_vector(31 downto 0);		-- from CPU bus
     signal data_in: std_logic_vector(31 downto 0);	-- from CPU bus
+<<<<<<< HEAD
+=======
+    signal burst_len: std_logic_vector(2 downto 0);	-- from CPU bus
+>>>>>>> upstream/master
 
     -- Arbiter registers
     signal R_cur_port, R_next_port: integer range 0 to (C_ports - 1);
@@ -213,6 +239,7 @@ architecture Behavioral of SDRAM_Controller is
     signal next_port: integer;
 
 begin
+<<<<<<< HEAD
     -- Mux for input ports
     addr_strobe <= bus_in(R_next_port).addr_strobe;
     write <= bus_in(R_next_port).write;
@@ -220,6 +247,25 @@ begin
     addr(bus_in(0).addr'high - 2 downto 0) <= bus_in(R_next_port).addr;
     data_in <= bus_in(R_next_port).data_in;
     ready_out <= R_ready_out;
+=======
+    -- Inbound multiport mux
+    addr_strobe <= mpbus(R_next_port).addr_strobe;
+    write <= mpbus(R_next_port).write;
+    byte_sel <= mpbus(R_next_port).byte_sel;
+    addr(mpbus(0).addr'high - 2 downto 0) <= mpbus(R_next_port).addr;
+    data_in <= mpbus(R_next_port).data_in;
+    burst_len <= mpbus(R_next_port).burst_len;
+
+    -- Outbound multiport demux
+    process(R_ready_out, R_from_sdram)
+	variable i: integer;
+    begin
+	for i in 0 to (C_ports - 1) loop
+	    mpbus(i).data_ready <= R_ready_out(i);
+	    mpbus(i).data_out <= R_from_sdram & R_from_sdram_prev;
+	end loop;
+    end process;
+>>>>>>> upstream/master
 
     -- Indicate the need to refresh when the counter is 2048,
     -- Force a refresh when the counter is 4096 - (if a refresh is forced, 
@@ -259,10 +305,16 @@ begin
     -- Explicitly set up the tristate I/O buffers on the DQ signals
     ---------------------------------------------------------------
     sdram_data <= iob_data when iob_dq_hiz = '0' else (others => 'Z');
+<<<<<<< HEAD
     data_out <= R_from_sdram & R_from_sdram_prev;
 
     -- Arbiter: round-robin port selection combinatorial logic
     process(bus_in, R_cur_port)
+=======
+
+    -- Arbiter: round-robin port selection combinatorial logic
+    process(mpbus, R_cur_port)
+>>>>>>> upstream/master
 	variable i, j, t, n: integer;
     begin
 	t := R_cur_port;
@@ -270,7 +322,11 @@ begin
 	    for j in 1 to C_ports loop
 		if R_cur_port = i then
 		    n := (i + j) mod C_ports;
+<<<<<<< HEAD
 		    if bus_in(n).addr_strobe = '1' and n /= C_prio_port then
+=======
+		    if mpbus(n).addr_strobe = '1' and n /= C_prio_port then
+>>>>>>> upstream/master
 			t := n;
 			exit;
 		    end if;
@@ -312,7 +368,11 @@ begin
 	    ----------------------------------------------------------------------------
 	    -- update shift registers used to choose when to present data to/from memory
 	    ----------------------------------------------------------------------------
+<<<<<<< HEAD
 	    if data_ready_delay(1) = '1' then
+=======
+	    if data_ready_delay(3 downto 1) = "001" then
+>>>>>>> upstream/master
 		read_done <= true;
 	    end if;
 	    data_ready_delay <= '0' & data_ready_delay(data_ready_delay'high downto 1);
@@ -340,6 +400,10 @@ begin
 		save_wr          <= write;
 		save_data_in     <= data_in;
 		save_byte_enable <= byte_sel;
+<<<<<<< HEAD
+=======
+		save_burst_len	 <= burst_len;
+>>>>>>> upstream/master
 		ready_for_new    <= '0';
 		if write = '1' then
 		    R_ready_out(R_next_port) <= '1';
@@ -471,7 +535,18 @@ begin
 		dqm_sr(1 downto 0) <= (others => '0');
 
 	    when s_read_2 =>
+<<<<<<< HEAD
 		state <= s_read_3;
+=======
+		if unsigned(save_burst_len) /= 0 then
+		    state <= s_read_1;
+		    save_burst_len <=
+		      std_logic_vector(unsigned(save_burst_len) - 1);
+		    save_col <= std_logic_vector(unsigned(save_col) + 2);
+		else
+		    state <= s_read_3;
+		end if;
+>>>>>>> upstream/master
 		if C_cas = 3 then
 		    dqm_sr(1 downto 0) <= (others => '0');
 		end if;

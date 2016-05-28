@@ -62,7 +62,10 @@ entity glue_sram is
 	C_full_shifter: boolean := true;
 	C_result_forwarding: boolean := true;
 	C_load_aligner: boolean := true;
+<<<<<<< HEAD
 	C_register_technology: string := "lattice";
+=======
+>>>>>>> upstream/master
 
 	-- This may negatively influence timing closure:
 	C_movn_movz: boolean := false; -- true: +16 LUT4, -DMIPS, incomplete
@@ -73,6 +76,10 @@ entity glue_sram is
 	-- SoC configuration options
 	C_cpus: integer := 1;
 	C_bram_size: integer := 2;	-- 2 or 16 KBytes
+<<<<<<< HEAD
+=======
+	C_boot_spi: boolean := true;
+>>>>>>> upstream/master
 	C_i_rom_only: boolean := true;
 	C_icache_expire: boolean := false; -- when true i-cache will just pass data, won't keep them
 	C_icache_size: integer := 8;	-- 0, 2, 4 or 8 KBytes
@@ -107,6 +114,7 @@ entity glue_sram is
       C_vgatext_reset: boolean := true;   -- reset registers to default with async reset
       C_vgatext_palette: boolean := false;  -- no color palette
       C_vgatext_text: boolean := true;    -- enable optional text generation
+<<<<<<< HEAD
         C_vgatext_char_height: integer := 16;   -- character cell height
         C_vgatext_font_height: integer := 8;    -- font height
         C_vgatext_font_depth: integer := 7;      -- font char depth, 7=128 characters or 8=256 characters
@@ -128,6 +136,35 @@ entity glue_sram is
           C_vgatext_bitmap_fifo_step: integer := 0;  -- bitmap step for the FIFO refill and rewind (0 unless repeating lines)
           C_vgatext_bitmap_compositing_length: integer := 0; -- H-compositing (tiny sprites, words size, 1 pixel high)
           C_vgatext_bitmap_fifo_width: integer := 8;  -- bitmap width of FIFO address space length = 2^width * 4 byte
+=======
+        C_vgatext_font_bram8: boolean := false;  -- font in separate bram8 file (for Lattice XP2 BRAM or non power-of-two BRAM sizes)
+        C_vgatext_char_height: integer := 16;   -- character cell height
+        C_vgatext_font_height: integer := 16;    -- font height
+        C_vgatext_font_depth: integer := 8;      -- font char depth, 7=128 characters or 8=256 characters
+        C_vgatext_font_linedouble: boolean := true;   -- double font height by doubling each line (e.g., so 8x8 font fills 8x16 cell)
+        C_vgatext_font_widthdouble: boolean := false;   -- double font width by doubling each pixel (e.g., so 8 wide font is 16 wide cell)
+        C_vgatext_monochrome: boolean := false;    -- true for 2-color text for whole screen, else additional color attribute byte per character
+        C_vgatext_finescroll: boolean := false;   -- true for pixel level character scrolling and line length modulo
+        C_vgatext_cursor: boolean := true;    -- true for optional text cursor
+        C_vgatext_cursor_blink: boolean := true;    -- true for optional blinking text cursor
+        C_vgatext_bus_write: boolean := true; -- true: allow writing vgatext BRAM from CPU bus. false: no write
+        C_vgatext_bus_read: boolean := false; -- true: allow reading vgatext BRAM from CPU bus (may affect fmax). false: write only
+        C_vgatext_reg_read: boolean := false; -- true: allow reading vgatext BRAM from CPU bus (may affect fmax). false: write only
+        C_vgatext_text_fifo: boolean := false;  -- disable text memory FIFO
+          C_vgatext_text_fifo_postpone_step: integer := 0;
+          C_vgatext_text_fifo_step: integer := (80*2)/4; -- step for the FIFO refill and rewind
+          C_vgatext_text_fifo_width: integer := 6;   -- width of FIFO address space (default=4) length = 2^width * 4 bytes
+      C_vgatext_bitmap: boolean := false;     -- true for optional bitmap generation
+        C_vgatext_bitmap_depth: integer := 8;   -- 8-bpp 256-color bitmap
+        C_vgatext_bitmap_fifo: boolean := false;  -- disable bitmap FIFO
+          C_vgatext_bitmap_fifo_step: integer := 0; -- bitmap step for the FIFO refill and rewind (0 unless repeating lines)
+          C_vgatext_bitmap_fifo_postpone_step: integer := 0; -- bitmap step for the FIFO refill and rewind (0 unless repeating lines)
+          C_vgatext_bitmap_fifo_addr_width: integer := 8;	-- bitmap width of FIFO address space length = 2^width * 4 byte
+          C_vgatext_bitmap_fifo_data_width: integer := 32; -- data width from the fifo
+          C_vgatext_bitmap_fifo_compositing_length: integer := 0;	-- compositing length (0 disabled)
+    C_vgatext_sync_debug: boolean := false; -- override 2 onboard leds with vsync based blinkie
+
+>>>>>>> upstream/master
 	C_pcm: boolean := true;
 	C_timer: boolean := true;
 	C_cw_simple_out: integer := -1; -- simple out bit used for CW modulation. -1 to disable
@@ -204,6 +241,10 @@ architecture Behavioral of glue_sram is
     -- Block RAM
     signal bram_i_to_cpu, bram_d_to_cpu: std_logic_vector(31 downto 0);
     signal bram_i_ready, bram_d_ready, dmem_bram_enable: std_logic;
+<<<<<<< HEAD
+=======
+    signal dmem_bram_write: std_logic;
+>>>>>>> upstream/master
 
     -- I/O
     signal io_write: std_logic;
@@ -218,7 +259,12 @@ architecture Behavioral of glue_sram is
     signal R_fb_mode: std_logic_vector(1 downto 0) := "11";
     signal R_fb_base_addr: std_logic_vector(29 downto 2) := (others => '0');
     
+<<<<<<< HEAD
     signal Rblink: std_logic_vector(31 downto 0);
+=======
+    signal R_syncdebug_blink: std_logic_vector(31 downto 0);
+    signal R_syncdebug_edge: std_logic_vector(2 downto 0);
+>>>>>>> upstream/master
 
     -- CPU reset control
     signal R_cpu_reset: std_logic_vector(15 downto 0) := x"fffe";
@@ -251,7 +297,11 @@ architecture Behavioral of glue_sram is
     signal fb_tick: std_logic;
 
     -- VGA/HDMI video
+<<<<<<< HEAD
     constant iomap_vga: T_iomap_range := (x"FB80", x"FB8F"); -- VGA/HDMI should be (x"FB90", x"FB9F")
+=======
+    constant iomap_vga: T_iomap_range := (x"FB90", x"FB9F");
+>>>>>>> upstream/master
     signal vga_ce: std_logic; -- '1' when address is in iomap_vga range
     signal vga_fetch_next: std_logic; -- video module requests next data from fifo
     signal vga_addr: std_logic_vector(29 downto 2);
@@ -276,10 +326,20 @@ architecture Behavioral of glue_sram is
     signal vga_textmode_blank: std_logic;
 
     -- VGA_textmode BRAM access
+<<<<<<< HEAD
     signal vga_textmode_dmem_write: std_logic;
     signal vga_textmode_dmem_to_cpu: std_logic_vector(31 downto 0);
     signal vga_textmode_bram_addr: std_logic_vector(15 downto 2);
     signal vga_textmode_bram_data: std_logic_vector(31 downto 0);
+=======
+    signal vga_textmode_dmem_write: std_logic := '0';
+    signal vga_textmode_dmem_to_cpu: std_logic_vector(31 downto 0);
+    signal vga_textmode_bram_addr: std_logic_vector(15 downto 2);
+    signal vga_textmode_bram_data: std_logic_vector(31 downto 0);
+    signal vga_textmode_bram_data_in: std_logic_vector(31 downto 0);
+    signal vga_textmode_bram8_data: std_logic_vector(7 downto 0);
+    signal vga_textmode_dmem8_write: std_logic;
+>>>>>>> upstream/master
 
     -- VGA_textmode SRAM/FIFO text access
     signal vga_textmode_text_addr: std_logic_vector(29 downto 2);
@@ -295,7 +355,11 @@ architecture Behavioral of glue_sram is
 
     -- VGA_textmode SRAM/FIFO bitmap access
     signal vga_textmode_bitmap_addr: std_logic_vector(29 downto 2); -- FIFO start or SRAM address
+<<<<<<< HEAD
     signal vga_textmode_bitmap_data: std_logic_vector(31 downto 0); -- data from FIFO or SRAM
+=======
+    signal vga_textmode_bitmap_data: std_logic_vector(C_vgatext_bitmap_fifo_data_width-1 downto 0); -- data from FIFO or SRAM
+>>>>>>> upstream/master
     signal vga_textmode_bitmap_strobe: std_logic;         -- FIFO fetch next word
     signal vga_textmode_bitmap_rewind: std_logic;         -- rewind FIFO
     signal vga_textmode_bitmap_ready: std_logic;          -- SRAM data ready
@@ -398,7 +462,10 @@ begin
 	C_branch_prediction => C_branch_prediction,
 	C_result_forwarding => C_result_forwarding,
 	C_load_aligner => C_load_aligner, C_full_shifter => C_full_shifter,
+<<<<<<< HEAD
 	C_register_technology => C_register_technology,
+=======
+>>>>>>> upstream/master
 	C_cop0_count => C_cop0_count, C_cop0_compare => C_cop0_compare,
 	C_cop0_config => C_cop0_config, C_exceptions => C_exceptions,
 	C_ll_sc => C_ll_sc,
@@ -610,13 +677,25 @@ begin
     end generate;
 
     G_simple_out_timer:
+<<<<<<< HEAD
     if C_timer = true generate
+=======
+    if C_timer = true and C_vgatext_sync_debug = false generate
+>>>>>>> upstream/master
     ocp_mux(0) <= ocp(0) when ocp_enable(0)='1' else R_simple_out(1);
     ocp_mux(1) <= ocp(1) when ocp_enable(1)='1' else R_simple_out(2);
     simple_out <= R_simple_out(31 downto 3) & ocp_mux & R_simple_out(0) when C_simple_out > 0
       else (others => '-');
     end generate;
 
+<<<<<<< HEAD
+=======
+    G_simple_out_vsync_debug:
+    if C_vgatext_sync_debug = true generate
+      simple_out <= R_simple_out(31 downto 3) & R_syncdebug_blink(5 downto 4) & R_simple_out(0);
+    end generate;
+
+>>>>>>> upstream/master
     -- big address decoder when CPU reads IO
     process(io_addr, R_simple_in, from_sio, from_spi,
       from_gpio, from_vga_textmode, from_timer)
@@ -690,6 +769,7 @@ begin
     --
     -- Block RAM (only CPU #0)
     --
+<<<<<<< HEAD
     G_i_d_ram:
     if not C_i_rom_only generate
     begin
@@ -698,6 +778,20 @@ begin
     bram: entity work.bram
     generic map (
 	C_mem_size => C_bram_size
+=======
+    old_bram: if true generate
+    G_i_d_ram:
+    if not C_i_rom_only generate
+    begin
+    dmem_bram_enable <= dmem_addr_strobe(0) when dmem_addr(0)(31) /= '1'
+      else '0';
+    bram: entity work.bram
+    generic map (
+	C_bram_size => C_bram_size,
+	C_arch => C_arch,
+	C_big_endian => C_big_endian,
+	C_boot_spi => C_boot_spi
+>>>>>>> upstream/master
     )
     port map (
 	clk => clk, imem_addr_strobe => imem_addr_strobe(0),
@@ -714,7 +808,14 @@ begin
     begin
     bram: entity work.bram
     generic map (
+<<<<<<< HEAD
 	C_mem_size => C_bram_size
+=======
+	C_bram_size => C_bram_size,
+	C_arch => C_arch,
+	C_big_endian => C_big_endian,
+	C_boot_spi => C_boot_spi
+>>>>>>> upstream/master
     )
     port map (
 	clk => clk, imem_addr_strobe => imem_addr_strobe(0),
@@ -725,6 +826,10 @@ begin
 	dmem_data_out => open, dmem_data_in => (others => '0')
     );
     end generate;
+<<<<<<< HEAD
+=======
+    end generate; -- old_bram
+>>>>>>> upstream/master
 
 
     --
@@ -908,6 +1013,7 @@ begin
     -- VGA/HDMI
     G_vgahdmi:
     if C_vgahdmi generate
+<<<<<<< HEAD
     vgahdmi: entity work.vgahdmi
     generic map (
       test_picture => C_vgahdmi_test_picture  -- show test picture in background
@@ -965,6 +1071,59 @@ begin
                                           '0' when others;
     process(clk)
     begin
+=======
+      vgahdmi: entity work.vgahdmi
+        generic map (
+          test_picture => C_vgahdmi_test_picture  -- show test picture in background
+        )
+        port map (
+          clk_pixel => clk_25m,
+          -- clk_tmds => clk_250MHz,
+          fetch_next => vga_fetch_next,
+          red_byte    => vga_data_from_fifo(7 downto 5) & "00000",
+          green_byte  => vga_data_from_fifo(4 downto 2) & "00000",
+          blue_byte   => vga_data_from_fifo(1 downto 0) & "000000",
+          bright_byte => (others => '0'),
+          vga_r => vga_r,
+          vga_g => vga_g,
+          vga_b => vga_b,
+          vga_hsync => S_vga_hsync,
+          vga_vsync => S_vga_vsync
+          -- tmds_out_rgb => tmds_out_rgb
+        );
+      vga_vsync <= not S_vga_vsync;
+      vga_hsync <= not S_vga_hsync;
+      comp_fifo: entity work.compositing_fifo
+        generic map (
+          C_step => C_vgahdmi_fifo_step,
+          C_postpone_step => C_vgahdmi_fifo_postpone_step,
+          C_compositing_length => C_vgahdmi_fifo_compositing_length,
+          C_data_width => C_vgahdmi_fifo_data_width,
+          C_addr_width => C_vgahdmi_fifo_addr_width
+        )
+        port map (
+          clk => clk,
+          clk_pixel => clk_25m,
+          addr_strobe => fb_addr_strobe,
+          addr_out => fb_addr,
+          data_ready => fb_data_ready, -- data valid for read acknowledge from RAM
+          data_in => vga_data, -- from SRAM
+          base_addr => R_fb_base_addr,
+          active => not S_vga_vsync,
+          frame => vga_frame,
+          data_out => vga_data_from_fifo(C_vgahdmi_fifo_data_width-1 downto 0),
+          fetch_next => vga_fetch_next
+        );
+
+      vga_data <= from_sram;
+
+      -- address decoder to set base address and clear interrupts
+      with conv_integer(io_addr(11 downto 4)) select
+        vga_ce <= io_addr_strobe(R_cur_io_port) when iomap_from(iomap_vga, iomap_range) to iomap_to(iomap_vga, iomap_range),
+                                            '0' when others;
+      process(clk)
+      begin
+>>>>>>> upstream/master
         if rising_edge(clk) then
             if vga_ce = '1' and io_write = '1' then
                 -- cpu write: writes Framebuffer base
@@ -988,6 +1147,7 @@ begin
                 end if;
             end if;
         end if; -- end rising edge
+<<<<<<< HEAD
     end process;
     end generate; -- end vgahdmi
 
@@ -1157,6 +1317,212 @@ begin
     vga_textmode_ce <= io_addr_strobe(R_cur_io_port) when iomap_from(iomap_vga_textmode, iomap_range) to iomap_to(iomap_vga_textmode, iomap_range),
     '0' when others;
   end generate; -- end VGA textmode
+=======
+      end process;
+    end generate; -- end vgahdmi
+
+
+    -- VGA textmode
+    G_vgatext:  if C_vgatext generate
+      vga_video: entity work.VGA_textmode
+        generic map (
+          C_vgatext_mode => C_vgatext_mode,
+          C_vgatext_bits => C_vgatext_bits,
+          C_vgatext_bram_mem => C_vgatext_bram_mem,
+          C_vgatext_external_mem => C_vgatext_external_mem,
+          C_vgatext_reset => C_vgatext_reset,
+          C_vgatext_palette => C_vgatext_palette,
+          C_vgatext_text => C_vgatext_text,
+          C_vgatext_font_bram8 => C_vgatext_font_bram8,
+          C_vgatext_reg_read => C_vgatext_reg_read,
+          C_vgatext_text_fifo => C_vgatext_text_fifo,
+          C_vgatext_char_height => C_vgatext_char_height,
+          C_vgatext_font_height => C_vgatext_font_height,
+          C_vgatext_font_depth => C_vgatext_font_depth,
+          C_vgatext_font_linedouble => C_vgatext_font_linedouble,
+          C_vgatext_font_widthdouble => C_vgatext_font_widthdouble,
+          C_vgatext_monochrome => C_vgatext_monochrome,
+          C_vgatext_finescroll => C_vgatext_finescroll,
+          C_vgatext_cursor => C_vgatext_cursor,
+          C_vgatext_cursor_blink => C_vgatext_cursor_blink,
+          C_vgatext_bitmap => C_vgatext_bitmap,
+          C_vgatext_bitmap_fifo_data_width => C_vgatext_bitmap_fifo_data_width,
+          C_vgatext_bitmap_depth => C_vgatext_bitmap_depth,
+          C_vgatext_bitmap_fifo => C_vgatext_bitmap_fifo
+        )
+        port map (
+          reset_i => sio_break,
+          clk_i => clk, ce_i => vga_textmode_ce, bus_addr_i => dmem_addr(0)(4 downto 2),
+          bus_write_i => dmem_write(0), byte_sel_i => dmem_byte_sel(0),
+          bus_data_i => cpu_to_dmem(0), bus_data_o => from_vga_textmode,
+          --
+          clk_pixel_i => clk_25m,
+          --
+          bram_addr_o => vga_textmode_bram_addr,
+          bram_data_i => vga_textmode_bram_data_in,
+          text_active_o => vga_textmode_text_active,
+          --
+          textfifo_addr_o => vga_textmode_text_addr,
+          textfifo_data_i => vga_textmode_text_data,
+          textfifo_strobe_o => vga_textmode_text_strobe,
+          textfifo_rewind_o => vga_textmode_text_rewind,
+          --
+          bitmap_strobe_o => vga_textmode_bitmap_strobe,
+          bitmap_addr_o => vga_textmode_bitmap_addr,
+          bitmap_ready_i => vga_textmode_bitmap_ready,
+          bitmap_data_i => vga_textmode_bitmap_data,
+          bitmap_active_o => vga_textmode_bitmap_active,
+          --
+          red_o => vga_textmode_red,
+          green_o => vga_textmode_green,
+          blue_o => vga_textmode_blue,
+          hsync_o => vga_textmode_hsync,
+          vsync_o => vga_textmode_vsync,
+          blank_o => vga_textmode_blank
+        );
+
+      vga_vsync <= vga_textmode_vsync;
+      vga_hsync <= vga_textmode_hsync;
+
+      vgasync_blink_count: if C_vgatext_sync_debug generate
+        process(clk_25m) begin
+          if rising_edge(clk_25m) then
+            R_syncdebug_edge <= vga_textmode_vsync & R_syncdebug_edge(2 downto 1);
+            if R_syncdebug_edge(1) = '0' and R_syncdebug_edge(0) = '1' then
+              R_syncdebug_blink <= R_syncdebug_blink+1;
+            end if;
+          end if;
+        end process;
+      end generate; -- vgasync_blink_count
+
+      -- analog vga output
+      vga_r(7 downto 8-C_vgatext_bits) <= vga_textmode_red;
+      vga_g(7 downto 8-C_vgatext_bits) <= vga_textmode_green;
+      vga_b(7 downto 8-C_vgatext_bits) <= vga_textmode_blue;
+      vga_vsync <= vga_textmode_vsync;
+      vga_hsync <= vga_textmode_hsync;
+
+      -- video FIFO for text+color
+      G_vgatext_text_fifo:
+      if C_vgatext_text AND C_vgatext_text_fifo generate
+        videofifo: entity work.videofifo
+          generic map (
+            C_postpone_step => C_vgatext_text_fifo_postpone_step,
+            C_step => C_vgatext_text_fifo_step,
+            C_width => C_vgatext_text_fifo_width -- length = 4 * 2^width
+          )
+          port map (
+            clk => clk,
+            clk_pixel => clk_25m,
+            addr_strobe => vga_textmode_text_sram_strobe,
+            addr_out => vga_textmode_text_sram_addr,
+            data_ready => vga_textmode_text_sram_ready, -- data valid for read acknowledge from RAM
+            data_in => from_sram, -- from SRAM
+            base_addr => vga_textmode_text_addr,
+            start => vga_textmode_text_active,
+            frame => vga_textmode_text_frame,
+            data_out => vga_textmode_text_data,
+            fetch_next => vga_textmode_text_strobe,
+            rewind => vga_textmode_text_rewind
+          );
+      end generate; -- G_vgatext_text_fifo
+
+      -- video FIFO for bitmap
+      G_vgatext_bitmap_fifo:
+      if C_vgatext_bitmap AND C_vgatext_bitmap_fifo generate
+        videofifo: entity work.compositing_fifo
+          generic map (
+            C_step => C_vgatext_bitmap_fifo_step,
+            C_postpone_step => C_vgatext_bitmap_fifo_postpone_step,
+            C_compositing_length => C_vgatext_bitmap_fifo_compositing_length,
+            C_data_width => C_vgatext_bitmap_fifo_data_width,
+            C_addr_width => C_vgatext_bitmap_fifo_addr_width
+          )
+          port map (
+            clk => clk,
+            clk_pixel => clk_25m,
+            addr_strobe => vga_textmode_bitmap_sram_strobe,
+            addr_out => vga_textmode_bitmap_sram_addr,
+            data_ready => vga_textmode_bitmap_sram_ready, -- data valid for read acknowledge from RAM
+            data_in => from_sram,
+            base_addr => vga_textmode_bitmap_addr,
+            active => vga_textmode_bitmap_active,
+            frame => vga_textmode_bitmap_frame,
+            data_out => vga_textmode_bitmap_data,
+            fetch_next => vga_textmode_bitmap_strobe
+          );
+      end generate; -- G_vgatext_bitmap_fifo
+
+      G_vgatext_nofifo:
+      if C_vgatext_bitmap AND NOT C_vgatext_bitmap_fifo generate
+        vga_textmode_bitmap_sram_strobe <= vga_textmode_bitmap_strobe;
+        vga_textmode_bitmap_sram_addr <= vga_textmode_bitmap_addr;
+        vga_textmode_bitmap_ready <= vga_textmode_bitmap_sram_ready;
+        vga_textmode_bitmap_data <= from_sram;
+      end generate;
+
+      -- VGA textmode BRAM (for text+attribute bytes and font)
+      G_vga_textmode_bram: if C_vgatext_text and C_vgatext_bram_mem > 0 generate
+        G_vgatext_bram: entity work.VGA_textmode_bram
+          generic map (
+            C_mem_size    => C_vgatext_bram_mem,
+            C_label       => C_vgatext_label,
+            C_monochrome  => C_vgatext_monochrome,
+            C_font_height => C_vgatext_font_height,
+            C_font_depth  => C_vgatext_font_depth
+          )
+          port map (
+            clk => clk, imem_addr => vga_textmode_bram_addr, imem_data_out => vga_textmode_bram_data,
+            dmem_write => vga_textmode_dmem_write,
+            dmem_byte_sel => dmem_byte_sel(0), dmem_addr => dmem_addr(0),
+            dmem_data_out => vga_textmode_dmem_to_cpu, dmem_data_in => cpu_to_dmem(0)
+          );
+      end generate; -- G_vga_textmode_bram
+
+      -- VGA textmode font BRAM (8-bit)
+      G_vga_textmode_bram8: if C_vgatext_font_bram8 generate
+        G_vgatext_bram8: entity work.VGA_textmode_font_bram8
+          generic map (
+            C_font_height => C_vgatext_font_height,
+            C_font_depth  => C_vgatext_font_depth
+          )
+          port map (
+            clk => clk, imem_addr => vga_textmode_bram_addr, imem_data_out => vga_textmode_bram8_data,
+            dmem_write => vga_textmode_dmem_write,
+            dmem_byte_sel => dmem_byte_sel(0), dmem_addr => dmem_addr(0)(15 downto 2),
+            dmem_data_out => open, dmem_data_in => cpu_to_dmem(0)(7 downto 0)
+          );
+      end generate; -- G_vga_textmode_bram8
+
+      pass_bram8_data: if C_vgatext_font_bram8 generate
+        vga_textmode_bram_data_in <= vga_textmode_bram_data(31 downto 8) & vga_textmode_bram8_data;
+      end generate; -- pass_bram8_data
+
+      pass_bram32_data: if not C_vgatext_font_bram8 generate
+        vga_textmode_bram_data_in <= vga_textmode_bram_data;
+      end generate; -- pass_bram32_data
+
+      vgatext_intr: process(clk)
+      begin
+        if rising_edge(clk) then
+            if vga_textmode_ce = '1' then -- interrupt handling: (CPU read or write will clear interrupt)
+              vga_textmode_intr <= '0';
+            else
+              if vga_textmode_text_frame = '1' OR vga_textmode_bitmap_frame = '1' then
+              vga_textmode_intr <= '1';
+            end if;
+          end if;
+        end if; -- end rising edge
+      end process;
+
+      bus_write_bram: if C_vgatext_bus_write generate
+        vga_textmode_dmem_write <= dmem_addr_strobe(0) and dmem_write(0) when dmem_addr(0)(31 downto 30) = "01" else '0';
+      end generate;
+      with conv_integer(io_addr(11 downto 4)) select
+        vga_textmode_ce <= io_addr_strobe(R_cur_io_port) when iomap_from(iomap_vga_textmode, iomap_range) to iomap_to(iomap_vga_textmode, iomap_range),
+        '0' when others;
+    end generate; -- end VGA textmode
+>>>>>>> upstream/master
 
     --
     -- PCM audio

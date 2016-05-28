@@ -49,7 +49,11 @@ use IEEE.NUMERIC_STD.ALL;
 use work.sram_pack.all;
 
 
+<<<<<<< HEAD
 entity SDRAM_Controller is
+=======
+entity sdram is
+>>>>>>> upstream/master
     generic (
 	C_ports: integer;
 	C_prio_port: integer := -1;
@@ -90,9 +94,15 @@ entity SDRAM_Controller is
 	sdram_addr: out STD_LOGIC_VECTOR(12 downto 0);
 	sdram_ba: out STD_LOGIC_VECTOR( 1 downto 0);
 	sdram_data: inout STD_LOGIC_VECTOR(15 downto 0));
+<<<<<<< HEAD
 end SDRAM_Controller;
 
 architecture Behavioral of SDRAM_Controller is
+=======
+end sdram;
+
+architecture Behavioral of sdram is
+>>>>>>> upstream/master
     -- From page 37 of MT48LC16M16A2 datasheet
     -- Name (Function)       CS# RAS# CAS# WE# DQM  Addr    Data
     -- COMMAND INHIBIT (NOP)  H   X    X    X   X     X       X

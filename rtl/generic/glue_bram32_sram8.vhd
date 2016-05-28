@@ -61,11 +61,14 @@ use IEEE.MATH_REAL.ALL;
 
 use work.f32c_pack.all;
 use work.sram_pack.all;
+<<<<<<< HEAD
 use work.boot_block_pack.all;
 use work.boot_sio_mi32el.all;
 use work.boot_sio_mi32eb.all;
 use work.boot_sio_rv32el.all;
 -- use work.boot_sio_rv32eb.all;
+=======
+>>>>>>> upstream/master
 
 
 entity glue_bram_sram8 is
@@ -93,9 +96,12 @@ entity glue_bram_sram8 is
     C_result_forwarding: boolean := true;
     C_load_aligner: boolean := true;
 
+<<<<<<< HEAD
     -- FPGA platform-specific options
     C_register_technology: string := "generic";
 
+=======
+>>>>>>> upstream/master
     -- Negatively influences timing closure, hence disabled
     C_movn_movz: boolean := false;
 
@@ -106,7 +112,12 @@ entity glue_bram_sram8 is
     C_sram_wait_cycles: integer := 3;       -- ISSI, OK do 87.5 MHz
     C_sram_pipelined_read: boolean := false;  -- works only at 81.25 MHz !!!
     -- SoC configuration options
+<<<<<<< HEAD
     C_mem_size: integer := 16;  -- in KBytes
+=======
+    C_bram_size: integer := 16;  -- in KBytes
+    C_boot_spi: boolean := false;
+>>>>>>> upstream/master
     C_icache_size: integer := 4;  -- 0, 2, 4 or 8 KBytes
     C_dcache_size: integer := 4;  -- 0, 2, 4 or 8 KBytes
     C_sram: boolean := true;
@@ -138,6 +149,10 @@ entity glue_bram_sram8 is
       C_vgatext_reset: boolean := true;   -- reset registers to default with async reset
       C_vgatext_palette: boolean := false;  -- no color palette
       C_vgatext_text: boolean := true;    -- enable optional text generation
+<<<<<<< HEAD
+=======
+        C_vgatext_font_bram8: boolean := false;  -- font in separate bram8 file (for Lattice XP2 BRAM or non power-of-two BRAM sizes)
+>>>>>>> upstream/master
         C_vgatext_char_height: integer := 16;   -- character cell height
         C_vgatext_font_height: integer := 8;    -- font height
         C_vgatext_font_depth: integer := 7;      -- font char depth, 7=128 characters or 8=256 characters
@@ -235,6 +250,7 @@ architecture Behavioral of glue_bram_sram8 is
   constant pcm_port: integer := 4;
   constant C_sram_ports: integer := 5;
 
+<<<<<<< HEAD
   type T_endian_select is array(boolean) of integer;
   constant select_big_endian: T_endian_select := (false => 0, true => 2);
 
@@ -249,6 +265,8 @@ architecture Behavioral of glue_bram_sram8 is
 
   constant boot_block: boot_block_type := boot_block_select(C_arch + select_big_endian(C_big_endian));
 
+=======
+>>>>>>> upstream/master
   -- io base
   type T_iomap_range is array(0 to 1) of std_logic_vector(15 downto 0);
   constant iomap_range: T_iomap_range := (x"F800", x"FFFF"); -- actual range is 0xFFFFF800 .. 0xFFFFFFFF
@@ -343,7 +361,14 @@ architecture Behavioral of glue_bram_sram8 is
   signal vga_textmode_dmem_write: std_logic;
   signal vga_textmode_dmem_to_cpu: std_logic_vector(31 downto 0);
   signal vga_textmode_bram_addr: std_logic_vector(15 downto 2);
+<<<<<<< HEAD
   signal vga_textmode_bram_data: std_logic_vector(31 downto 0);
+=======
+  signal vga_textmode_bram_data_in: std_logic_vector(31 downto 0);
+  signal vga_textmode_bram_data: std_logic_vector(31 downto 0);
+  signal vga_textmode_bram8_data: std_logic_vector(7 downto 0);
+  signal vga_textmode_dmem8_write: std_logic;
+>>>>>>> upstream/master
 
   -- VGA_textmode SRAM/FIFO text access
   signal vga_textmode_text_addr: std_logic_vector(29 downto 2);
@@ -408,7 +433,10 @@ begin
   C_result_forwarding => C_result_forwarding,
   C_load_aligner => C_load_aligner, C_full_shifter => C_full_shifter,
   C_ll_sc => C_ll_sc, C_exceptions => C_exceptions,
+<<<<<<< HEAD
   C_register_technology => C_register_technology,
+=======
+>>>>>>> upstream/master
   C_icache_size => C_icache_size, C_dcache_size => C_dcache_size,
   -- debugging only
   C_debug => C_debug
@@ -774,6 +802,10 @@ begin
     C_vgatext_reset => C_vgatext_reset,
     C_vgatext_palette => C_vgatext_palette,
     C_vgatext_text => C_vgatext_text,
+<<<<<<< HEAD
+=======
+    C_vgatext_font_bram8 => C_vgatext_font_bram8,
+>>>>>>> upstream/master
     C_vgatext_reg_read => C_vgatext_reg_read,
     C_vgatext_text_fifo => C_vgatext_text_fifo,
     C_vgatext_char_height => C_vgatext_char_height,
@@ -798,7 +830,11 @@ begin
     clk_pixel_i => clk_25MHz,
     --
     bram_addr_o => vga_textmode_bram_addr,
+<<<<<<< HEAD
     bram_data_i => vga_textmode_bram_data,
+=======
+    bram_data_i => vga_textmode_bram_data_in,
+>>>>>>> upstream/master
     text_active_o => vga_textmode_text_active,
     --
     textfifo_addr_o => vga_textmode_text_addr,
@@ -900,7 +936,11 @@ begin
     clock_s  => LVDS_ck
   );
 
+<<<<<<< HEAD
       -- 8KB VGA textmode BRAM (for text+attribute bytes and font)
+=======
+      -- VGA textmode BRAM (for text+attribute bytes and font)
+>>>>>>> upstream/master
   G_vga_textmode_bram: if C_vgatext_text generate
   G_vgatext_bram: entity work.VGA_textmode_bram
   generic map (
@@ -918,6 +958,24 @@ begin
   );
   end generate;
 
+<<<<<<< HEAD
+=======
+      -- VGA textmode font BRAM (8-bit)
+  G_vga_textmode_bram8: if C_vgatext_font_bram8 generate
+  G_vgatext_bram8: entity work.VGA_textmode_font_bram8
+  generic map (
+    C_font_height => C_vgatext_font_height,
+    C_font_depth  => C_vgatext_font_depth
+  )
+  port map (
+    clk => clk, imem_addr => vga_textmode_bram_addr, imem_data_out => vga_textmode_bram8_data,
+    dmem_write => vga_textmode_dmem8_write,
+    dmem_byte_sel => dmem_byte_sel, dmem_addr => dmem_addr(15 downto 2),
+    dmem_data_out => open, dmem_data_in => cpu_to_dmem(7 downto 0)
+  );
+  end generate;
+
+>>>>>>> upstream/master
   vgatext_intr: process(clk)
   begin
     if rising_edge(clk) then
@@ -931,7 +989,19 @@ begin
     end if; -- end rising edge
   end process;
 
+<<<<<<< HEAD
   vga_textmode_dmem_write <= dmem_addr_strobe and dmem_write when dmem_addr(31 downto 30) = "01" else '0';
+=======
+  vga_textmode_bram_data_in <= vga_textmode_bram_data when (NOT C_vgatext_font_bram8 OR vga_textmode_bram_addr(15) = '0') else
+    vga_textmode_bram_data(31 downto 8) & vga_textmode_bram8_data;
+
+  vga_textmode_dmem_write <= dmem_addr_strobe and dmem_write when dmem_addr(31 downto 30) = "01" AND (NOT C_vgatext_font_bram8 OR dmem_addr(15) = '0') else '0';
+  
+  G_vgatext_bram8_wr: if C_vgatext_font_bram8 generate
+    vga_textmode_dmem8_write <= dmem_addr_strobe and dmem_write when dmem_addr(31 downto 30) = "01" AND dmem_addr(15) = '1' else '0';
+  end generate;
+  
+>>>>>>> upstream/master
   with conv_integer(io_addr(11 downto 4)) select
     vga_textmode_ce <= io_addr_strobe when iomap_from(iomap_vga_textmode, iomap_range) to iomap_to(iomap_vga_textmode, iomap_range),
     '0' when others;
@@ -955,8 +1025,15 @@ begin
 
   bram: entity work.bram
   generic map (
+<<<<<<< HEAD
     boot_block => boot_block,
     C_mem_size => C_mem_size
+=======
+    C_bram_size => C_bram_size,
+    C_arch => C_arch,
+    C_big_endian => C_big_endian,
+    C_boot_spi => C_boot_spi
+>>>>>>> upstream/master
   )
   port map (
     clk => clk, imem_addr => imem_addr, imem_data_out => imem_data_read,

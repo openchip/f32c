@@ -22,15 +22,26 @@
 module vgahdmi_v(
         input wire clk_pixel, /* 25 MHz */
         input wire clk_tmds, /* 250 MHz (set to 0 for VGA-only) */
+<<<<<<< HEAD
+=======
+        input wire test_picture, // show test picture instead of bitmap
+>>>>>>> upstream/master
         input wire [7:0] red_byte, green_byte, blue_byte, bright_byte, // get data from fifo
         output wire fetch_next, // fetch_next=1: read cycle is complete, fetch next data
         output wire line_repeat, // repeat video line
         output wire vga_hsync, vga_vsync, // active low, vsync will reset fifo
+<<<<<<< HEAD
         output wire [7:0] vga_r, vga_g, vga_b,
 	output wire [2:0] TMDS_out_RGB
 );
 
 parameter test_picture = 0;
+=======
+        output wire vga_vblank, vga_blank, // vertical and combined v+h blank signal
+        output wire [7:0] vga_r, vga_g, vga_b
+);
+
+>>>>>>> upstream/master
 // pixel doubling may not work (long time not maintained)
 parameter dbl_x = 0; // 0-normal X, 1-double X
 parameter dbl_y = 0; // 0-normal Y, 1-double Y
@@ -50,14 +61,23 @@ parameter frame_y = resolution_y + vsync_front_porch + vsync_pulse + vsync_back_
 // refresh_rate = pixel_clock/(frame_x*frame_y) = 25MHz / (800*525) = 59.52Hz
 ////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
 wire clk_TMDS;
 wire pixclk;
 
 assign clk_TMDS = clk_tmds; // 250 MHz
+=======
+wire pixclk;
+
+>>>>>>> upstream/master
 assign pixclk = clk_pixel;  //  25 MHz
 
 reg [9:0] CounterX, CounterY;
 reg hSync, vSync, DrawArea;
+<<<<<<< HEAD
+=======
+reg vBlank;
+>>>>>>> upstream/master
 
 // wire fetcharea; // when to fetch data, must be 1 byte earlier than draw area
 wire fetcharea = (CounterX<resolution_x) && (CounterY<resolution_y);
@@ -76,10 +96,22 @@ always @(posedge pixclk)
   end
 always @(posedge pixclk)
   begin
+<<<<<<< HEAD
     if(CounterY == resolution_y + vsync_front_porch)
       vSync <= 1;
     if(CounterY == resolution_y + vsync_front_porch + vsync_pulse)
       vSync <= 0;
+=======
+    if(CounterY == resolution_y)
+      vBlank <= 1;
+    if(CounterY == resolution_y + vsync_front_porch)
+      vSync <= 1;
+    if(CounterY == resolution_y + vsync_front_porch + vsync_pulse)
+    begin
+      vSync <= 0;
+      vBlank <= 0;
+    end
+>>>>>>> upstream/master
   end
 
 parameter synclen = 3; // >=3, bit length of the clock synchronizer shift register
@@ -106,6 +138,7 @@ always @(posedge pixclk) test_green <= (CounterX[7:0] & {8{CounterY[6]}} | W) & 
 always @(posedge pixclk) test_blue <= CounterY[7:0] | W | A;
 
 // generate VGA output, mixing with test picture if enabled
+<<<<<<< HEAD
 assign vga_r = DrawArea ? (test_picture ? test_red[7:0]  :  red_byte[7:0]) : 0;
 assign vga_g = DrawArea ? (                               green_byte[7:0]) : 0;
 assign vga_b = DrawArea ? (test_picture ? test_blue[7:0] : blue_byte[7:0]) : 0;
@@ -186,3 +219,15 @@ always @(posedge clk) balance_acc <= VDE ? balance_acc_new : 4'h0;
 endmodule
 
 ////////////////////////////////////////////////////////////////////////
+=======
+assign vga_r = DrawArea ? (test_picture ? test_red[7:0]   : red_byte[7:0]  ) : 0;
+assign vga_g = DrawArea ? (test_picture ? test_green[7:0] : green_byte[7:0]) : 0;
+assign vga_b = DrawArea ? (test_picture ? test_blue[7:0]  : blue_byte[7:0] ) : 0;
+assign vga_hsync = hSync;
+assign vga_vsync = vSync;
+assign vga_vblank = vBlank;
+assign vga_blank = ~DrawArea;
+assign line_repeat = dbl_y ? vga_hsync & ~CounterY[0] : 0;
+
+endmodule
+>>>>>>> upstream/master

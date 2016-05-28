@@ -31,7 +31,10 @@ module simotor_v (
   reg [1:0] encoder;         // encoder output patter
 
   reg signed [31:0] speed;
+<<<<<<< HEAD
   reg [31:0] aspeed; // absolute speed
+=======
+>>>>>>> upstream/master
   reg [31:0] counter;   // main motor position counter
 
 /*
@@ -61,11 +64,24 @@ module simotor_v (
   // larger motor_speed values allow higher motor top speed
   parameter [7:0] motor_friction = 60; // static friction
   // when motor_power > motor_friction it starts to move
+<<<<<<< HEAD
 
   wire [31:0] applied_power;
   assign applied_power = F == 1 && R == 0 ?  motor_power :
                          F == 0 && R == 1 ? -motor_power : 0;
   
+=======
+  parameter [3:0] prescaler = 0; // number of bits in the counter for clock slowdown
+
+  reg [31:0] applied_power;
+  
+  reg unsigned [prescaler:0] slowdown;
+  
+  // apply motor voltage 
+  wire signed [31:0] speed_powered;
+  assign speed_powered = speed+applied_power;
+
+>>>>>>> upstream/master
   wire signed [7:0] sfriction;
   assign sfriction = speed >= 0 ? motor_friction : -motor_friction;
 
@@ -74,6 +90,7 @@ module simotor_v (
   // edge of the CLOCK.
   always @ (posedge CLOCK)
   begin : MOTOR_SIMULATOR // Block Name
+<<<<<<< HEAD
 
     // motor voltage 
     speed = speed + applied_power;
@@ -92,6 +109,33 @@ module simotor_v (
       2'b10: encoder = 2'b10;
       2'b11: encoder = 2'b00;
     endcase
+=======
+    applied_power <= F == 1 && R == 0 ?  motor_power :
+                     F == 0 && R == 1 ? -motor_power : 0;
+    slowdown <= slowdown + 1;
+    if(slowdown == 0)
+    begin
+
+    // accelerate
+    speed <= speed_powered > motor_friction || speed_powered < -motor_friction ? 
+             speed_powered 
+             - (speed_powered >= 0 ? (speed_powered >> motor_speed) : -((-speed_powered) >> motor_speed) )
+             - sfriction : 0;
+
+    // add speed to the counter
+    counter <= counter + speed;
+
+    // generate encoder value
+    case(counter[31:30])
+      2'b00: encoder <= 2'b01;
+      2'b01: encoder <= 2'b11;
+      2'b10: encoder <= 2'b10;
+      2'b11: encoder <= 2'b00;
+    endcase
+    
+    end
+    
+>>>>>>> upstream/master
   end // End of Block CLOCK_DIVIDER
 
   assign A = encoder[0];

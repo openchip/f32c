@@ -1,0 +1,1697 @@
+--
+-- Copyright (c) 2015 Marko Zec, University of Zagreb
+-- Copyright (c) 2016 Emard
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions
+-- are met:
+-- 1. Redistributions of source code must retain the above copyright
+--    notice, this list of conditions and the following disclaimer.
+-- 2. Redistributions in binary form must reproduce the above copyright
+--    notice, this list of conditions and the following disclaimer in the
+--    documentation and/or other materials provided with the distribution.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+-- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+-- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+-- ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+-- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+-- OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+-- HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+-- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+-- OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+-- SUCH DAMAGE.
+--
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.MATH_REAL.ALL;
+use ieee.numeric_std.all; -- we need signed type
+
+use work.f32c_pack.all;
+use work.sram_pack.all;
+
+entity glue_xram is
+generic (
+  C_clk_freq: integer;
+
+  -- ISA options
+  C_arch: integer := ARCH_MI32;
+  C_big_endian: boolean := false;
+  C_mult_enable: boolean := true;
+  C_branch_likely: boolean := true;
+  C_sign_extend: boolean := true;
+  C_ll_sc: boolean := false;
+  C_PC_mask: std_logic_vector(31 downto 0) := x"ffffffff"; -- full 4GB
+  C_exceptions: boolean := true;
+
+  -- COP0 options
+  C_cop0_count: boolean := true;
+  C_cop0_compare: boolean := true;
+  C_cop0_config: boolean := true;
+
+  -- CPU core configuration options
+  C_branch_prediction: boolean := true;
+  C_full_shifter: boolean := true;
+  C_result_forwarding: boolean := true;
+  C_load_aligner: boolean := true;
+
+  -- Negatively influences timing closure, hence disabled
+  C_movn_movz: boolean := false;
+
+  -- CPU debugging
+  C_debug: boolean := false;
+
+  -- SDRAM parameters
+  C_sdram_address_width : integer := 24;
+  C_sdram_column_bits : integer := 9;
+  C_sdram_startup_cycles : integer := 10100;
+  C_sdram_cycles_per_refresh : integer := 1524;
+
+  -- RAM emulation
+  -- 0: normal SDRAM, no emulation
+  -- 11:8K, 12:16K, 13:32K ... RAM emulation
+  --C_ram_emu_addr_width: integer := 0;
+  --C_ram_emu_wait_states: integer := 0;
+
+  -- SoC configuration options
+  C_bram_size: integer := 2;	-- in KBytes
+  C_boot_rom: boolean := false;
+  C_boot_spi: boolean := false;
+  C_icache_expire: boolean := false; -- when true i-cache will just pass data, won't keep them
+  C_icache_size: integer := 0;	-- 0, 2, 4, 8, 16 or 32 KBytes
+  C_dcache_size: integer := 0;	-- 0, 2, 4, 8, 16 or 32 KBytes
+  C_xram_base: std_logic_vector(31 downto 28) := x"8"; -- x"8" maps RAM to 0x80000000
+  C_cached_addr_bits: integer := 20; -- number of lower RAM address bits to be cached
+  C_sram: boolean := false; -- 16-bit SRAM
+  C_sram_refresh: boolean := false; -- sram refresh workaround (RED ULX2S boards need this)
+  C_sram8: boolean := false; -- 8-bit SRAM
+  C_sram_wait_cycles: integer := 4; -- ISSI, OK do 87.5 MHz
+  C_sram_pipelined_read: boolean := false; -- works only at 81.25 MHz !!!
+  C_sdram: boolean := false;
+  C_acram: boolean := false; -- AXI CACHE RAM
+  C_acram_wait_cycles: integer := 4; -- wait cycles for acram
+  C_sio: integer := 1;
+  C_sio_init_baudrate: integer := 115200;
+  C_sio_fixed_baudrate: boolean := false;
+  C_sio_break_detect: boolean := true;
+  C_spi: integer := 0;
+  C_spi_turbo_mode: std_logic_vector := "0000";
+  C_spi_fixed_speed: std_logic_vector := "1111";
+  C_simple_in: integer range 0 to 128 := 32;
+  C_simple_out: integer range 0 to 128 := 32;
+  -- video hardware output settings
+  C_dvid_ddr: boolean := false; -- false: generate digital video from 250MHz SDR single edge, true: digital video from 125MHz DDR double edge
+  -- C_lvds_display:
+  -- false: normal monitors, DVI-D/HDMI 10-bit TMDS (25MHz pixel clock, 250MHz shift clock)
+  -- true:  bare wired LCD panel, 7-bit LVDS (36MHz pixel clock, 252MHz shift clock and does only SDR, not DDR)
+  C_lvds_display: boolean := false; -- false: normal DVI-D/HDMI, true: bare LCD panel
+  C_video_cache_size: integer := 0; -- KB
+  --C_video_cache_all: std_logic := '0'; -- 0 cache pixel content only, 1 cache everything (all c2 pointers and content)
+  C_video_cache_use_i: boolean := false; -- true: use instruction cache (faster, maybe buggy), false: use data cache (slower, works)
+  -- TV simple 512x512 bitmap
+  C_tv: boolean := false; -- enable TV output
+  C_tv_fifo_width: integer := 512;
+  C_tv_fifo_height: integer := 512;
+  C_tv_fifo_data_width: integer range 8 to 32 := 8;
+  C_tv_fifo_addr_width: integer := 11;
+  -- VGA/HDMI simple 640x480 bitmap only
+  C_vgahdmi: boolean := false; -- enable VGA/HDMI output to vga_ and tmds_
+  C_vgahdmi_fifo_timeout: integer := 0; -- abort compositing at N pixels before end of line (0 disabled)
+  C_vgahdmi_fifo_width: integer := 640;
+  C_vgahdmi_fifo_height: integer := 480;
+  C_vgahdmi_fifo_data_width: integer range 8 to 32 := 8;
+  C_vgahdmi_fifo_addr_width: integer := 11;
+  -- LED strip ws2812 POV simple 144x480 bitmap only
+  C_ledstrip: boolean := false; -- enable dual channel ws2812b output
+  C_ledstrip_full_circle: integer := 100; -- count of pulses per full circle of rotation
+  C_ledstrip_fifo_width: integer := 72;
+  C_ledstrip_fifo_height: integer := 36;
+  C_ledstrip_fifo_data_width: integer range 8 to 32 := 8;
+  C_ledstrip_fifo_addr_width: integer := 11;
+  -- Xark's feature-rich bitmap+textmode VGA
+  -- it can mix 8bpp bitmap and tiled graphics on the same screen
+  -- choice of many of video modes
+  -- minimal mode needs only 4K BRAM
+  C_vgatext: boolean := false;    -- Xark's feature-rich bitmap+textmode VGA
+    C_vgatext_label: string := "f32c";    -- default banner in screen memory
+    C_vgatext_mode: integer := 0; -- 640x480
+    C_vgatext_bits: integer := 2; -- 4 possible colors
+    C_vgatext_bram_mem: integer := 4; -- 4KB text+font  memory
+    C_vgatext_bram_base: std_logic_vector(31 downto 28) := x"4"; -- start address of textmode bram x"4" -> 0x40000000
+    C_vgatext_external_mem: integer := 0; -- 0KB external SRAM/SDRAM
+    C_vgatext_reset: boolean := true; -- reset registers to default with async reset
+    C_vgatext_palette: boolean := false; -- no color palette
+    C_vgatext_text: boolean := true; -- enable optional text generation
+      C_vgatext_font_bram8: boolean := false; -- font in separate bram8 file (for Lattice XP2 BRAM or non power-of-two BRAM sizes)
+      C_vgatext_char_height: integer := 16; -- character cell height
+      C_vgatext_font_height: integer := 8; -- font height
+      C_vgatext_font_depth: integer := 8; -- font char depth, 7=128 characters or 8=256 characters
+      C_vgatext_font_linedouble: boolean := true; -- double font height by doubling each line (e.g., so 8x8 font fills 8x16 cell)
+      C_vgatext_font_widthdouble: boolean := false; -- double font width by doubling each pixel (e.g., so 8 wide font is 16 wide cell)
+      C_vgatext_monochrome: boolean := false; -- true for 2-color text for whole screen, else additional color attribute byte per character
+      C_vgatext_finescroll: boolean := false; -- true for pixel level character scrolling and line length modulo
+      C_vgatext_cursor: boolean := true; -- true for optional text cursor
+      C_vgatext_cursor_blink: boolean := true; -- true for optional blinking text cursor
+      C_vgatext_bus_read: boolean := false; -- true to allow reading vgatext BRAM from CPU bus (may affect fmax). false is write only
+      C_vgatext_reg_read: boolean := false; -- true to allow reading vgatext BRAM from CPU bus (may affect fmax). false is write only
+      C_vgatext_text_fifo: boolean := true;  -- enable text memory FIFO
+      C_vgatext_text_fifo_postpone_step: integer := 0;
+      C_vgatext_text_fifo_step: integer := (80*2)/4; -- step for the FIFO refill and rewind
+        C_vgatext_text_fifo_width: integer := 6; -- width of FIFO address space (default=4) length = 2^width * 4 bytes
+    C_vgatext_bitmap: boolean := false; -- true for optional bitmap generation
+      C_vgatext_bitmap_depth: integer := 8; -- 8-bpp 256-color bitmap
+      C_vgatext_bitmap_fifo: boolean := false; -- disable bitmap FIFO
+        C_vgatext_bitmap_fifo_timeout: integer := 0; -- abort compositing at N pixels before end of line (0 disabled)
+        C_vgatext_bitmap_fifo_step: integer := 640; -- bitmap step for the FIFO refill and rewind (0 unless repeating lines)
+        C_vgatext_bitmap_fifo_height: integer := 480; -- bitmap step for the FIFO refill and rewind (0 unless repeating lines)
+        C_vgatext_bitmap_fifo_addr_width: integer := 11; -- bitmap width of FIFO address space length = 2^width * 4 byte
+        C_vgatext_bitmap_fifo_data_width: integer := 8; -- data width from the fifo
+
+    C_pcm: boolean := false;
+    C_cw_simple_out: integer := -1; -- simple out bit used for CW modulation. -1 to disable
+    C_fmrds: boolean := false; -- enable FM/RDS output to fm_antenna
+      C_fm_stereo: boolean := false;
+      C_fm_filter: boolean := false;
+      C_fm_downsample: boolean := false;
+      C_rds_msg_len: integer := 260; -- bytes of circular sent message, typical 52 for PS or 260 PS+RT
+      C_fmdds_hz: integer := 250000000; -- Hz clk_fmdds (>2*108 MHz, e.g. 250000000, 325000000)
+      C_rds_clock_multiply: integer := 57; -- multiply 57 and divide 3125 from cpu clk 100 MHz
+      C_rds_clock_divide: integer := 3125; -- to get 1.824 MHz for RDS logic
+    C_gpio: integer range 0 to 128 := 32;
+    C_gpio_pullup: boolean := false; -- XXX fixme not connected
+    C_gpio_adc: integer range 0 to 6 := 6;  -- XXX fixme not connected number of gpio ports setup for ADC (FleaFPGA-Uno)
+    C_pids: integer range 0 to 8 := 0; -- number of pids 0:disable, 2-8:enable
+      C_pid_simulator: std_logic_vector(7 downto 0) := (others => '0'); -- for each pid choose simulator/real
+      C_pid_prescaler: integer range 10 to 26 := 18; -- control loop frequency f_clk/2^prescaler
+      C_pid_precision: integer range 0 to 8 := 1; -- fixed point PID precision
+      C_pid_pwm_bits: integer range 11 to 32 := 12; -- PWM output frequency f_clk/2^pwmbits (min 11 => 40kHz @ 81.25MHz)
+      C_pid_fp: integer range 0 to 26 := 8; -- loop frequency value for pid calculation, use 26-C_pid_prescaler
+    C_timer: boolean := true
+);
+port (
+  clk: in std_logic;
+  clk_pixel: in std_logic := '0'; -- VGA pixel clock 25 MHz
+  clk_pixel_shift: in std_logic := '0'; -- digital video (DVID/HDMI) bit shift clock, for SDR 10x clk_pixel, for DDR 5x clk_pixel, default 0 if no digital video
+  clk_fmdds: in std_logic := '0'; -- FM DDS clock (>216 MHz)
+  clk_cw: in std_logic := '0'; -- CW transmitter 433.92 MHz
+  sram_a: out std_logic_vector(19 downto 0);
+  sram_d: inout std_logic_vector(15 downto 0);
+  sram_wel, sram_lbl, sram_ubl: out std_logic;
+  -- sram_oel: out std_logic; -- XXX the old ULXP2 board needs this!
+  sdram_addr: out std_logic_vector(12 downto 0);
+  sdram_data: inout std_logic_vector(15 downto 0);
+  sdram_ba: out std_logic_vector(1 downto 0);
+  sdram_dqm: out std_logic_vector(1 downto 0);
+  sdram_ras, sdram_cas: out std_logic;
+  sdram_cke, sdram_clk: out std_logic;
+  sdram_we, sdram_cs: out std_logic;
+  -- axi cache ram (shared signaling with sdram)
+  acram_en: out std_logic;
+  acram_addr: out std_logic_vector(29 downto 2);
+  acram_ready: in std_logic := '1';
+  acram_data_rd: in std_logic_vector(31 downto 0) := (others => '0');
+  acram_data_wr: out std_logic_vector(31 downto 0);
+  acram_byte_we: out std_logic_vector(3 downto 0);
+  --
+  sio_rxd: in std_logic_vector(C_sio - 1 downto 0);
+  sio_txd, sio_break: out std_logic_vector(C_sio - 1 downto 0);
+  spi_sck, spi_ss, spi_mosi: out std_logic_vector(C_spi - 1 downto 0);
+  spi_miso: in std_logic_vector(C_spi - 1 downto 0) := (others => '-');
+  simple_in: in std_logic_vector(31 downto 0);
+  simple_out: out std_logic_vector(31 downto 0);
+  pid_encoder_a, pid_encoder_b: in  std_logic_vector(C_pids-1 downto 0) := (others => '-');
+  pid_bridge_f,  pid_bridge_r:  out std_logic_vector(C_pids-1 downto 0);
+  vga_hsync, vga_vsync: out std_logic;
+  vga_r, vga_g, vga_b: out std_logic_vector(7 downto 0) := (others => '0');
+  tmds_out_rgb: out std_logic_vector(2 downto 0);
+  tmds_out_clk: out std_logic := '0'; -- used for DDR output
+  dvid_red, dvid_green, dvid_blue, dvid_clock: out std_logic_vector(1 downto 0);
+  ledstrip_rotation: in std_logic := '0'; -- input from motor rotation encoder
+  ledstrip_out: out std_logic_vector(1 downto 0); -- 2 channels out
+  jack_tip, jack_ring: out std_logic_vector(3 downto 0); -- 3.5mm phone jack, 4-bit simple DAC
+  fm_antenna, cw_antenna: out std_logic;
+  gpio: inout std_logic_vector(127 downto 0);
+  gpio_pullup: inout std_logic_vector(127 downto 0);  -- XXX fixme not connected optional (set C_gpio_pullup false)
+  --ADC ports
+  ADC_Error_out: inout std_logic_vector(5 downto 0); -- XXX fixme not connected
+  -- PS/2 Keyboard
+  ps2_clk_in: in std_logic := '0'; -- XXX fixme not connected
+  ps2_dat_in: in std_logic := '0';
+  ps2_clk_out: out std_logic;
+  ps2_dat_out: out std_logic
+);
+end glue_xram;
+
+architecture Behavioral of glue_xram is
+    signal imem_addr: std_logic_vector(31 downto 2);
+    signal S_imem_addr_in_xram: std_logic;
+    signal imem_addr_strobe, imem_data_ready, dmem_bram_enable: std_logic;
+    signal dmem_addr: std_logic_vector(31 downto 2);
+    signal S_dmem_addr_in_xram: std_logic;
+    signal dmem_addr_strobe, dmem_write: std_logic;
+    signal dmem_data_ready: std_logic;
+    signal dmem_byte_sel: std_logic_vector(3 downto 0);
+    signal cpu_to_dmem: std_logic_vector(31 downto 0);
+    signal final_to_cpu_i, final_to_cpu_d: std_logic_vector(31 downto 0);
+    signal bram_d_to_cpu, bram_i_to_cpu: std_logic_vector(31 downto 0);
+    signal bram_i_ready, bram_d_ready: std_logic;
+    signal io_to_cpu: std_logic_vector(31 downto 0);
+    signal io_addr_strobe: std_logic;
+    signal io_addr: std_logic_vector(11 downto 2);
+    signal intr: std_logic_vector(5 downto 0); -- interrupt
+
+    -- SDRAM
+    signal to_xram: sram_port_array;
+    signal xram_ready: sram_ready_array;
+    signal from_xram: std_logic_vector(31 downto 0);
+    signal snoop_cycle: std_logic;
+    signal snoop_addr: std_logic_vector(31 downto 2);
+    constant instr_port: integer := 0;
+    constant data_port: integer := 1;
+    constant fb_port: integer := 2;
+    constant fb_text_port: integer := 3;
+    -- currently either text mode or refresh can be enabled, not both
+    -- port number is the same as fb_text port because textmode is
+    -- not yet working on ULX2S
+    constant refresh_port: integer := 3;
+    constant pcm_port: integer := 4;
+    constant C_xram_ports: integer := 5;
+
+    -- io base
+    type T_iomap_range is array(0 to 1) of std_logic_vector(15 downto 0);
+    constant iomap_range: T_iomap_range := (x"F800", x"FFFF"); -- actual range is 0xFFFFF800 .. 0xFFFFFFFF
+
+    function iomap_from(r: T_iomap_range; base: T_iomap_range) return integer is
+      variable a, b: std_logic_vector(15 downto 0);
+    begin
+        a := r(0);
+        b := base(0);
+        return conv_integer(a(11 downto 4) - b(11 downto 4));
+    end iomap_from;
+
+    function iomap_to(r: T_iomap_range; base: T_iomap_range) return integer is
+      variable a, b: std_logic_vector(15 downto 0);
+    begin
+        a := r(1);
+        b := base(0);
+        return conv_integer(a(11 downto 4) - b(11 downto 4));
+    end iomap_to;
+
+    -- Timer
+    constant iomap_timer: T_iomap_range := (x"F900", x"F93F");
+    signal timer_range: std_logic := '0';
+    signal from_timer: std_logic_vector(31 downto 0);
+    signal timer_ce: std_logic;
+    signal ocp, ocp_enable, ocp_mux: std_logic_vector(1 downto 0);
+    signal icp, icp_enable: std_logic_vector(1 downto 0);
+    signal timer_intr: std_logic;
+
+    -- TV video
+    signal R_fb_base_addr: std_logic_vector(31 downto 2) := (others => '0');
+    signal R_fb_intr: std_logic;
+    signal S_tv_dac: std_logic_vector(3 downto 0);
+    signal S_tv_fetch_next: std_logic;
+    signal S_tv_vsync: std_logic;
+    signal S_tv_mode: std_logic_vector(1 downto 0) := "10";
+
+    -- VGA/HDMI video
+    constant iomap_vga: T_iomap_range := (x"FB90", x"FB9F");
+    signal vga_ce: std_logic; -- '1' when address is in iomap_vga range
+    signal S_vga_enable: std_logic;
+    signal S_vga_active_enabled: std_logic;
+    signal vga_fetch_next, S_vga_fetch_enabled: std_logic; -- video module requests next data from fifo
+    signal vga_line_repeat: std_logic;
+    signal vga_data_from_fifo: std_logic_vector(31 downto 0);
+    -- VGA RAM port
+    signal vga_addr: std_logic_vector(29 downto 2);
+    signal vga_addr_strobe: std_logic; -- FIFO requests to read from RAM
+    signal vga_data_ready: std_logic; -- RAM responds to FIFO
+    signal vga_data: std_logic_vector(31 downto 0);
+    -- Video FIFO data bus
+    signal video_fifo_suggest_cache: std_logic := '0';
+    signal video_fifo_addr: std_logic_vector(29 downto 2);
+    signal video_fifo_addr_strobe: std_logic; -- FIFO requests to read from RAM
+    signal video_fifo_data_ready: std_logic; -- RAM responds to FIFO
+    signal video_fifo_data: std_logic_vector(31 downto 0);
+
+    signal video_bram_write: std_logic;
+    signal video_bram_addr_strobe: std_logic;
+    signal S_vga_r, S_vga_g, S_vga_b: std_logic_vector(7 downto 0);
+    signal S_vga_vsync, S_vga_hsync: std_logic;
+    signal S_vga_vblank, S_vga_blank: std_logic;
+    signal vga_frame: std_logic; -- fifo outputs signal for frame interrupt
+
+
+    constant iomap_ledstrip: T_iomap_range := (x"FB90", x"FB9F");
+    signal ledstrip_ce: std_logic;
+    signal S_ledstrip_active: std_logic;
+    signal S_ledstrip_pixel_data: std_logic_vector(23 downto 0) := (others => '0');
+    signal S_ledstrip_counter, S_ledstrip_counter2: std_logic_vector(23 downto 0);
+    signal S_ledstrip_line, S_ledstrip_bit: std_logic_vector(15 downto 0);
+    signal S_ledstrip_out: std_logic;
+    signal S_ledstrip_wraparound: std_logic;
+    signal R_ledstrip_wraparound_shift: std_logic_vector(2 downto 0);
+    signal R_ledstrip_capture: std_logic_vector(31 downto 0);
+    signal from_ledstrip: std_logic_vector(31 downto 0);
+
+    -- VGA_textmode VGA/HDMI video (text and font in BRAM, bitmap in sdram)
+    constant iomap_vga_textmode: T_iomap_range := (x"FB80", x"FB9F");
+    signal vga_textmode_ce: std_logic;
+    signal from_vga_textmode: std_logic_vector(31 downto 0);
+    signal vga_textmode_red: std_logic_vector(C_vgatext_bits-1 downto 0);
+    signal vga_textmode_green: std_logic_vector(C_vgatext_bits-1 downto 0);
+    signal vga_textmode_blue: std_logic_vector(C_vgatext_bits-1 downto 0);
+    signal vga_textmode_hsync: std_logic;
+    signal vga_textmode_vsync: std_logic;
+    signal vga_textmode_blank: std_logic;
+
+    -- VGA_textmode BRAM access
+    signal vga_textmode_dmem_write: std_logic;
+    signal vga_textmode_dmem_to_cpu: std_logic_vector(31 downto 0);
+    signal vga_textmode_bram_addr: std_logic_vector(15 downto 2);
+    signal vga_textmode_bram_data_in: std_logic_vector(31 downto 0);
+    signal vga_textmode_bram_data: std_logic_vector(31 downto 0);
+    signal vga_textmode_bram8_data: std_logic_vector(7 downto 0);
+    signal vga_textmode_dmem8_write: std_logic;
+
+    -- VGA_textmode SRAM/FIFO text access
+    signal vga_textmode_text_addr: std_logic_vector(29 downto 2);
+    signal vga_textmode_text_data: std_logic_vector(31 downto 0);
+    signal vga_textmode_text_strobe: std_logic;
+    signal vga_textmode_text_rewind: std_logic;
+    signal vga_textmode_text_ready: std_logic; -- SDRAM data ready
+    signal vga_textmode_text_sdram_addr: std_logic_vector(29 downto 2);
+    signal vga_textmode_text_sdram_strobe: std_logic; -- FIFO requests to read from RAM
+    signal vga_textmode_text_sdram_ready: std_logic; -- RAM responds to FIFO
+    signal vga_textmode_text_active: std_logic; -- true when visible scan-line, false in vertical blanking period
+    signal vga_textmode_text_frame: std_logic;
+
+    -- VGA_textmode SRAM/FIFO bitmap access
+    signal vga_textmode_bitmap_addr: std_logic_vector(29 downto 2); -- FIFO start or SRAM address
+    signal vga_textmode_bitmap_data: std_logic_vector(C_vgatext_bitmap_fifo_data_width-1 downto 0); -- data from FIFO or SRAM
+    signal vga_textmode_bitmap_strobe: std_logic; -- FIFO fetch next word
+    signal vga_textmode_bitmap_rewind: std_logic; -- rewind FIFO
+    signal vga_textmode_bitmap_ready: std_logic; -- SRAM data ready
+    signal vga_textmode_bitmap_active: std_logic; -- true when visible scan-line, false in vertical blanking period
+    signal vga_textmode_bitmap_frame: std_logic;
+
+    -- VGA to DVI-D conversion in DDR mode
+    signal dvid_red_ddr, dvid_green_ddr, dvid_blue_ddr, dvid_clock_ddr: std_logic_vector(1 downto 0);
+
+    -- PCM audio
+    constant iomap_pcm: T_iomap_range := (x"FBA0", x"FBAF");
+    signal pcm_ce: std_logic;
+    signal pcm_addr_strobe, pcm_data_ready: std_logic;
+    signal pcm_addr: std_logic_vector(29 downto 2);
+    signal from_pcm: std_logic_vector(31 downto 0);
+    signal pcm_l, pcm_r: std_logic;
+    signal pcm_bus_l, pcm_bus_r: ieee.numeric_std.signed(15 downto 0);
+    signal pwm_filt_l, pwm_filt_r: std_logic;
+
+    -- FM/RDS RADIO
+    constant iomap_fmrds: T_iomap_range := (x"FC00", x"FC0F");
+    signal from_fmrds: std_logic_vector(31 downto 0);
+    signal fmrds_ce: std_logic;
+
+    -- GPIO
+    constant iomap_gpio: T_iomap_range := (x"F800", x"F87F");
+    signal gpio_range: std_logic := '0';
+    constant C_gpios: integer := (C_gpio+31)/32; -- number of gpio units
+    type gpios_type is array (C_gpios-1 downto 0) of std_logic_vector(31 downto 0);
+    signal from_gpio, gpios: gpios_type;
+    signal gpio_ce: std_logic_vector(C_gpios-1 downto 0);
+    signal gpio_intr: std_logic_vector(C_gpios-1 downto 0);
+    signal gpio_intr_joint: std_logic := '0';
+
+    -- PID
+    constant iomap_pid: T_iomap_range := (x"FD80", x"FDBF");
+    constant C_pid: boolean := C_pids >= 2; -- minimum is 2 PIDs, otherwise no PID
+    signal from_pid: std_logic_vector(31 downto 0);
+    signal pid_ce: std_logic;
+    signal pid_intr: std_logic; -- currently unused
+    signal pid_bridge_f_out: std_logic_vector(C_pids-1 downto 0);
+    signal pid_bridge_r_out: std_logic_vector(C_pids-1 downto 0);
+    signal pid_encoder_a_out: std_logic_vector(C_pids-1 downto 0);
+    signal pid_encoder_b_out: std_logic_vector(C_pids-1 downto 0);
+    constant C_pids_bits: integer := integer(floor((log2(real(C_pids)+0.001))+0.5));
+
+    -- Serial I/O (RS232)
+    constant iomap_sio: T_iomap_range := (x"FB00", x"FB3F");
+    signal sio_range: std_logic := '0';
+    type from_sio_type is array (0 to C_sio - 1) of
+      std_logic_vector(31 downto 0);
+    signal from_sio: from_sio_type;
+    signal sio_ce, sio_tx, sio_rx: std_logic_vector(C_sio - 1 downto 0);
+    signal sio_break_internal: std_logic_vector(C_sio - 1 downto 0);
+
+    -- SPI (on-board Flash, SD card, others...)
+    constant iomap_spi: T_iomap_range := (x"FB40", x"FB7F");
+    signal spi_range: std_logic := '0';
+    type from_spi_type is array (0 to C_spi - 1) of
+      std_logic_vector(31 downto 0);
+    signal from_spi: from_spi_type;
+    signal spi_ce: std_logic_vector(C_spi - 1 downto 0);
+
+    -- Simple I/O: onboard LEDs, buttons and switches
+    constant iomap_simple_in: T_iomap_range := (x"FF00", x"FF0F");
+    constant iomap_simple_out: T_iomap_range := (x"FF10", x"FF1F");
+    signal R_simple_in, R_simple_out: std_logic_vector(31 downto 0);
+
+    -- external RAM signals (currently only used for RAM emulation)
+    signal xram_request, xram_write: std_logic;
+    signal xram_addr: std_logic_vector(27 downto 0);
+    signal xram_byte_sel: std_logic_vector(3 downto 0);
+    signal xram_data_in, xram_data_out: std_logic_vector(31 downto 0);
+    signal xram_ready_next_cycle: std_logic;
+
+    -- external SRAM refresh workaround
+    signal refresh_addr: std_logic_vector(29 downto 2) := (others => '0');
+    signal refresh_strobe: std_logic := '0';
+    signal refresh_data_ready: std_logic;
+
+    -- Debug
+    signal sio_to_debug_data: std_logic_vector(7 downto 0);
+    signal debug_to_sio_data: std_logic_vector(7 downto 0);
+    signal deb_sio_rx_done, deb_sio_tx_busy, deb_sio_tx_strobe: std_logic;
+    signal deb_tx: std_logic;
+    signal debug_debug: std_logic_vector(7 downto 0);
+    signal debug_out_strobe: std_logic;
+    signal debug_active: std_logic;
+
+begin
+
+    -- f32c core
+    pipeline: entity work.cache
+    generic map (
+      C_arch => C_arch, C_cpuid => 0, C_clk_freq => C_clk_freq,
+      C_big_endian => C_big_endian, C_branch_likely => C_branch_likely,
+      C_sign_extend => C_sign_extend, C_movn_movz => C_movn_movz,
+      C_mult_enable => C_mult_enable, C_PC_mask => C_PC_mask,
+      C_cop0_count => C_cop0_count, C_cop0_config => C_cop0_config,
+      C_cop0_compare => C_cop0_compare,
+      C_branch_prediction => C_branch_prediction,
+      C_result_forwarding => C_result_forwarding,
+      C_load_aligner => C_load_aligner, C_full_shifter => C_full_shifter,
+      C_ll_sc => C_ll_sc, C_exceptions => C_exceptions,
+      C_icache_expire => C_icache_expire,
+      C_xram_base => C_xram_base, -- hacky part of address decoding in the cache
+      C_icache_size => C_icache_size, C_dcache_size => C_dcache_size,
+      C_cached_addr_bits => C_cached_addr_bits, -- +1 ? e.g. 20 bits will cache 1MB
+      -- debugging only
+      C_debug => C_debug
+    )
+    port map (
+      clk => clk, reset => sio_break_internal(0), intr => intr,
+      imem_addr => imem_addr,
+      imem_data_in => final_to_cpu_i,
+      imem_addr_strobe => imem_addr_strobe,
+      imem_data_ready => imem_data_ready,
+      dmem_addr_strobe => dmem_addr_strobe, dmem_addr => dmem_addr,
+      dmem_write => dmem_write, dmem_byte_sel => dmem_byte_sel,
+      dmem_data_in => final_to_cpu_d, dmem_data_out => cpu_to_dmem,
+      dmem_data_ready => dmem_data_ready,
+      snoop_cycle => '0', snoop_addr => "------------------------------",
+      -- debugging
+      debug_in_data => sio_to_debug_data,
+      debug_in_strobe => deb_sio_rx_done,
+      debug_in_busy => open,
+      debug_out_data => debug_to_sio_data,
+      debug_out_strobe => deb_sio_tx_strobe,
+      debug_out_busy => deb_sio_tx_busy,
+      debug_debug => debug_debug,
+      debug_active => debug_active
+    );
+    -- both internal bram and external RAM are cached
+    -- the cache must distinguish between them so
+    -- RAM base address must be passed to cache module
+    -- it is not enough to only decode them here
+    S_imem_addr_in_xram <= '1' when imem_addr(31 downto 28) = C_xram_base else '0';
+    S_dmem_addr_in_xram <= '1' when dmem_addr(31 downto 28) = C_xram_base else '0';
+    -- f32c 'standard' RAM hardcoded at 0x80000000
+    -- using most significant address bit (bit 32), which is
+    --S_imem_addr_in_xram <= imem_addr(31);
+    --S_dmem_addr_in_xram <= dmem_addr(31);
+    final_to_cpu_i <= from_xram when S_imem_addr_in_xram = '1' else bram_i_to_cpu;
+    final_to_cpu_d <= io_to_cpu when io_addr_strobe = '1'
+      else vga_textmode_dmem_to_cpu when C_vgatext AND C_vgatext_bus_read AND dmem_addr(31 downto 28) = C_vgatext_bram_base -- address 0x40000000
+      else from_xram when S_dmem_addr_in_xram = '1'
+      else bram_d_to_cpu;
+    intr <= "00" & gpio_intr_joint & timer_intr & from_sio(0)(8) & R_fb_intr;
+    io_addr_strobe <= dmem_addr_strobe when dmem_addr(31 downto 28) = x"F" -- iomap at 0xFxxxxxxx
+      else '0';
+    video_bram_addr_strobe <= dmem_addr_strobe when dmem_addr(31 downto 28) = C_vgatext_bram_base -- default at 0x4xxxxxxx
+      else '0';
+    io_addr <= '0' & dmem_addr(10 downto 2);
+    imem_data_ready <= xram_ready(instr_port) when S_imem_addr_in_xram = '1'
+      else bram_i_ready;
+    dmem_data_ready <= xram_ready(data_port) when S_dmem_addr_in_xram = '1'
+      else io_addr_strobe or video_bram_addr_strobe or bram_d_ready;
+    
+    G_xram:
+    if C_sdram or C_sram or C_sram8 or C_acram generate
+    -- port 0: instruction bus
+    to_xram(instr_port).addr_strobe <= imem_addr_strobe when
+      S_imem_addr_in_xram = '1' else '0';
+    to_xram(instr_port).addr <= imem_addr(to_xram(instr_port).addr'high downto 2);
+    to_xram(instr_port).data_in <= (others => '-');
+    to_xram(instr_port).write <= '0';
+    to_xram(instr_port).byte_sel <= "1111";
+    -- port 1: data bus
+    to_xram(data_port).addr_strobe <= dmem_addr_strobe when
+      S_dmem_addr_in_xram = '1' else '0';
+    to_xram(data_port).addr <= dmem_addr(to_xram(data_port).addr'high downto 2);
+    to_xram(data_port).data_in <= cpu_to_dmem;
+    to_xram(data_port).write <= dmem_write;
+    to_xram(data_port).byte_sel <= dmem_byte_sel;
+    -- port 2: VGA/HDMI video read
+    G_bitmap_sram: if C_tv OR C_vgahdmi OR C_ledstrip OR (C_vgatext AND C_vgatext_bitmap) generate
+    to_xram(fb_port).addr_strobe <= vga_addr_strobe;
+    to_xram(fb_port).addr <= vga_addr(to_xram(fb_port).addr'high downto 2);
+    to_xram(fb_port).data_in <= (others => '-');
+    to_xram(fb_port).write <= '0';
+    to_xram(fb_port).byte_sel <= "1111"; -- 32 bits read for RGB
+    vga_data_ready <= xram_ready(fb_port);
+    end generate; -- G_bitmap_sdram
+    -- port 3: VGA/HDMI video text+color read
+    G_text_sram: if C_vgatext AND C_vgatext_text_fifo generate
+    to_xram(fb_text_port).addr_strobe <= vga_textmode_text_sdram_strobe;
+    to_xram(fb_text_port).addr <= vga_textmode_text_sdram_addr(to_xram(fb_text_port).addr'high downto 2);
+    to_xram(fb_text_port).data_in <= (others => '-');
+    to_xram(fb_text_port).write <= '0';
+    to_xram(fb_text_port).byte_sel <= "1111"; -- 32 bits read for RGB
+    vga_textmode_text_sdram_ready <= xram_ready(fb_text_port);
+    end generate;
+    G_refresh_port: if C_sram_refresh generate
+    to_xram(refresh_port).addr_strobe <= refresh_strobe;
+    to_xram(refresh_port).addr <= refresh_addr;
+    to_xram(refresh_port).data_in <= (others => '-');
+    to_xram(refresh_port).write <= '0';
+    to_xram(refresh_port).byte_sel <= "1111"; -- 32 bits read
+    refresh_data_ready <= xram_ready(refresh_port);
+    end generate;
+    -- port 4: PCM audio DMA
+    G_pcm_sdram: if C_pcm generate
+        to_xram(pcm_port).addr_strobe <= pcm_addr_strobe;
+        to_xram(pcm_port).write <= '0';
+        to_xram(pcm_port).byte_sel <= "1111";
+        to_xram(pcm_port).addr <= pcm_addr;
+        to_xram(pcm_port).data_in <= (others => '-');
+        pcm_data_ready <= xram_ready(pcm_port);
+    end generate;
+    end generate; -- G_xram
+    
+    G_sram16bit:
+    if C_sram generate
+    sram: entity work.sram
+    generic map (
+	C_ports => C_xram_ports, -- extra ports: framebuffer, textmode and PCM audio
+	C_prio_port => fb_port, -- framebuffer
+	C_wait_cycles => C_sram_wait_cycles,
+	C_pipelined_read => C_sram_pipelined_read
+    )
+    port map (
+	clk => clk, sram_a => sram_a(18 downto 0), sram_d => sram_d,
+	sram_wel => sram_wel, sram_lbl => sram_lbl, sram_ubl => sram_ubl,
+	data_out => from_xram,
+	snoop_cycle => snoop_cycle, snoop_addr => snoop_addr,
+	-- Multi-port connections:
+	bus_in => to_xram, ready_out => xram_ready
+    );
+    end generate; -- G_sram16bit
+
+    G_sram_refresh: if C_sram_refresh generate
+    sram_refresh: entity work.sram_refresh
+    generic map (
+        C_clk_freq => C_clk_freq, -- MHz cpu clock frequency
+        -- DRAM page size is apparently 512 bytes, our bus width is 4B
+        C_addr_bits => 11, -- address range to refresh (pages)
+        -- Refresh all 2048 pages every 32 ms, per IS42S16100E specs
+        C_refresh_cycle_ms => 32 -- milliseconds
+    )
+    port map (
+      clk => clk,
+      refresh_addr => refresh_addr(19 downto 9), -- 1MB paged, 512 bytes per page
+      refresh_strobe => refresh_strobe,
+      refresh_data_ready => refresh_data_ready
+    );
+    end generate; -- G_sram_refresh
+
+    G_sram8bit:
+    if C_sram8 generate
+    sram8: entity work.sram8_controller
+    generic map (
+        C_ports => C_xram_ports, -- extra ports: framebuffer, textmode and PCM audio
+        C_prio_port => fb_port, -- framebuffer
+        C_wait_cycles => C_sram_wait_cycles,
+        C_pipelined_read => C_sram_pipelined_read
+    )
+    port map (
+        clk => clk,
+        -- internal connections
+        data_out => from_xram, bus_in => to_xram, ready_out => xram_ready,
+        sram_wel => sram_wel, sram_addr => sram_a(19 downto 0), sram_data => sram_d(7 downto 0),
+        snoop_cycle => snoop_cycle, snoop_addr => snoop_addr
+    );
+    end generate; -- G_sram8bit
+
+    G_sdram:
+    if C_sdram generate
+    sdram: entity work.sdram
+    generic map (
+      C_ports => C_xram_ports,
+      --C_prio_port => 2, -- VGA priority port not yet implemented
+      --C_ras => 3,
+      --C_cas => 3,
+      --C_pre => 3,
+      --C_clock_range => 2,
+      sdram_address_width => C_sdram_address_width,
+      sdram_column_bits => C_sdram_column_bits,
+      sdram_startup_cycles => C_sdram_startup_cycles,
+      cycles_per_refresh => C_sdram_cycles_per_refresh
+    )
+    port map (
+      clk => clk, reset => sio_break_internal(0),
+      -- internal connections
+      data_out => from_xram, bus_in => to_xram, ready_out => xram_ready,
+      snoop_cycle => snoop_cycle, snoop_addr => snoop_addr,
+      -- external SDRAM interface
+      sdram_addr => sdram_addr, sdram_data => sdram_data,
+      sdram_ba => sdram_ba, sdram_dqm => sdram_dqm,
+      sdram_ras => sdram_ras, sdram_cas => sdram_cas,
+      sdram_cke => sdram_cke, sdram_clk => sdram_clk,
+      sdram_we => sdram_we, sdram_cs => sdram_cs
+    );
+    end generate; -- end final G_sdram
+
+    G_no_sdram: if not C_sdram generate
+    -- disable SDRAM, but we need to
+    -- use external signals here so
+    -- xilinx compiler will be happy
+    sdram_addr <= (others => '-');
+    sdram_data <= (others => 'Z');
+    sdram_ba <= (others => '-');
+    sdram_dqm <= (others => '-');
+    sdram_ras <= '1';
+    sdram_cas <= '1';
+    sdram_cke <= '1';
+    sdram_clk <= '0';
+    sdram_we <= '1';
+    sdram_cs <= '1';
+    end generate; -- G_no_sdram
+
+    G_acram:
+    if C_acram generate
+    acram: entity work.acram
+    generic map (
+	C_ports => C_xram_ports, -- extra ports: framebuffer, textmode and PCM audio
+	C_prio_port => fb_port, -- framebuffer
+	C_wait_cycles => C_acram_wait_cycles
+    )
+    port map (
+	clk => clk,
+	acram_en => acram_en,
+	acram_a => acram_addr(29 downto 2),
+	acram_data_rd => acram_data_rd,
+	acram_data_wr => acram_data_wr,
+	acram_byte_we => acram_byte_we,
+	acram_ready => acram_ready,
+	data_out => from_xram,
+	snoop_cycle => snoop_cycle, snoop_addr => snoop_addr,
+	-- Multi-port connections:
+	bus_in => to_xram, ready_out => xram_ready
+    );
+    end generate; -- G_acram
+
+    -- RS232 sio
+    G_sio: for i in 0 to C_sio - 1 generate
+        sio_instance: entity work.sio
+        generic map (
+          C_clk_freq => C_clk_freq,
+          C_init_baudrate => C_sio_init_baudrate,
+          C_fixed_baudrate => C_sio_fixed_baudrate,
+          C_break_detect => C_sio_break_detect,
+          C_break_resets_baudrate => C_sio_break_detect,
+          C_big_endian => C_big_endian
+	)
+        port map (
+          clk => clk, ce => sio_ce(i), txd => sio_tx(i), rxd => sio_rx(i),
+          bus_write => dmem_write, byte_sel => dmem_byte_sel,
+          bus_in => cpu_to_dmem, bus_out => from_sio(i),
+          break => sio_break_internal(i)
+        );
+        sio_ce(i) <= io_addr_strobe when io_addr(11 downto 6) = x"3" & "00" and
+          conv_integer(io_addr(5 downto 4)) = i else '0';
+	sio_break(i) <= sio_break_internal(i);
+    end generate;
+    G_sio_decoder: if C_sio > 0 generate
+    with conv_integer(io_addr(11 downto 4)) select
+      sio_range <= '1' when iomap_from(iomap_sio, iomap_range) to iomap_to(iomap_sio, iomap_range),
+                   '0' when others;
+    end generate;
+    sio_rx(0) <= sio_rxd(0);
+
+    -- SPI
+    G_spi: for i in 0 to C_spi - 1 generate
+        spi_instance: entity work.spi
+        generic map (
+          C_turbo_mode => C_spi_turbo_mode(i) = '1',
+          C_fixed_speed => C_spi_fixed_speed(i) = '1'
+        )
+        port map (
+          clk => clk, ce => spi_ce(i),
+          bus_write => dmem_write, byte_sel => dmem_byte_sel,
+          bus_in => cpu_to_dmem, bus_out => from_spi(i),
+          spi_sck => spi_sck(i), spi_cen => spi_ss(i),
+          spi_miso => spi_miso(i), spi_mosi => spi_mosi(i)
+        );
+        spi_ce(i) <= io_addr_strobe when io_addr(11 downto 6) = x"3" & "01" and
+          conv_integer(io_addr(5 downto 4)) = i else '0';
+    end generate;
+    G_spi_decoder: if C_spi > 0 generate
+    with conv_integer(io_addr(11 downto 4)) select
+      spi_range <= '1' when iomap_from(iomap_spi, iomap_range) to iomap_to(iomap_spi, iomap_range),
+                   '0' when others;
+    end generate;
+
+    --
+    -- Simple I/O
+    --
+    process(clk)
+    begin
+        if rising_edge(clk) and io_addr_strobe = '1' and dmem_write = '1' then
+            -- simple out
+            -- currently limted to 32 simple out bits (fixme for more)
+            if C_simple_out > 0 and conv_integer(io_addr(11 downto 4)) = iomap_from(iomap_simple_out, iomap_range) then
+              for i in 0 to 3 loop
+                if dmem_byte_sel(i) = '1' then
+                  R_simple_out(i*8+7 downto i*8) <= cpu_to_dmem(i*8+7 downto i*8);
+                end if;
+              end loop;
+            end if;
+        end if;
+        if rising_edge(clk) then
+            R_simple_in(C_simple_in - 1 downto 0) <=
+              simple_in(C_simple_in - 1 downto 0);
+        end if;
+    end process;
+
+    G_simple_out_standard:
+    if C_timer = false generate
+        simple_out(C_simple_out - 1 downto 0) <=
+          R_simple_out(C_simple_out - 1 downto 0);
+    end generate;
+    -- muxing simple_io to show PWM of timer on LEDs
+    G_simple_out_timer:
+    if C_timer = true generate
+      ocp_mux(0) <= ocp(0) when ocp_enable(0)='1' else R_simple_out(1);
+      ocp_mux(1) <= ocp(1) when ocp_enable(1)='1' else R_simple_out(2);
+      simple_out <= R_simple_out(31 downto 3) & ocp_mux & R_simple_out(0) when C_simple_out > 0
+      else (others => '-');
+    end generate;
+
+    -- big address decoder when CPU reads IO
+    process(io_addr, R_simple_in, R_simple_out, from_sio, from_timer, from_gpio, from_vga_textmode)
+        variable i: integer;
+    begin
+        -- io_to_cpu <= (others => '-');
+        case conv_integer(io_addr(11 downto 4)) is
+        when iomap_from(iomap_gpio, iomap_range) to iomap_to(iomap_gpio, iomap_range) =>
+            for i in 0 to C_gpios - 1 loop
+                if conv_integer(io_addr(6 downto 5)) = i then
+                    io_to_cpu <= from_gpio(i);
+                end if;
+            end loop;
+        when iomap_from(iomap_timer, iomap_range) to iomap_to(iomap_timer, iomap_range) =>
+	    if C_timer then
+                io_to_cpu <= from_timer;
+            end if;
+        when iomap_from(iomap_sio, iomap_range) to iomap_to(iomap_sio, iomap_range) =>
+            for i in 0 to C_sio - 1 loop
+                if conv_integer(io_addr(5 downto 4)) = i then
+                    io_to_cpu <= from_sio(i);
+                end if;
+            end loop;
+        when iomap_from(iomap_spi, iomap_range) to iomap_to(iomap_spi, iomap_range) =>
+            for i in 0 to C_spi - 1 loop
+                if conv_integer(io_addr(5 downto 4)) = i then
+                    io_to_cpu <= from_spi(i);
+                end if;
+            end loop;
+        when iomap_from(iomap_pid, iomap_range) to iomap_to(iomap_pid, iomap_range) =>
+            if C_pid then
+                io_to_cpu <= from_pid;
+            end if;
+        when iomap_from(iomap_fmrds, iomap_range) to iomap_to(iomap_fmrds, iomap_range) =>
+            if C_fmrds then
+                io_to_cpu <= from_fmrds;
+            end if;
+        when iomap_from(iomap_simple_in, iomap_range) to iomap_to(iomap_simple_in, iomap_range) =>
+            for i in 0 to (C_simple_in + 31) / 32 - 1 loop
+                if conv_integer(io_addr(3 downto 2)) = i then
+                  io_to_cpu <= R_simple_in(32*i+31 downto 32*i);
+                end if;
+            end loop;
+        when iomap_from(iomap_simple_out, iomap_range) to iomap_to(iomap_simple_out, iomap_range) =>
+            for i in 0 to (C_simple_out + 31) / 32 - 1 loop
+                if conv_integer(io_addr(3 downto 2)) = i then
+                  io_to_cpu <= R_simple_out(32*i+31 downto 32*i);
+                end if;
+            end loop;
+        -- vgahdmi, ledstrip and textmode share the same iomap addresses
+        -- we can specify only one otherwise error confilict will be generated
+        --when iomap_from(iomap_vga, iomap_range) to iomap_to(iomap_vga, iomap_range) =>
+        --when iomap_from(iomap_ledstrip, iomap_range) to iomap_to(iomap_ledstrip, iomap_range) =>
+        when iomap_from(iomap_vga_textmode, iomap_range) to iomap_to(iomap_vga_textmode, iomap_range) =>
+            if C_tv then
+                io_to_cpu <= (others => S_vga_vblank); -- XXX fixme sync too short, get correct blank
+            end if;
+            if C_vgahdmi then
+                io_to_cpu <= (others => S_vga_vblank); -- vertical blank: all bits the same
+            end if;
+            if C_ledstrip then
+                io_to_cpu <= from_ledstrip;
+            end if;
+            if C_vgatext then
+                io_to_cpu <= from_vga_textmode;
+            end if;
+        when iomap_from(iomap_pcm, iomap_range) to iomap_to(iomap_pcm, iomap_range) =>
+            if C_pcm then
+                io_to_cpu <= from_pcm;
+            else
+                io_to_cpu <= (others => '-');
+            end if;
+        when others  =>
+            io_to_cpu <= (others => '-');
+        end case;
+    end process;
+
+    -- GPIO
+    G_gpio:
+    for i in 0 to C_gpios-1 generate
+        gpio_inst: entity work.gpio
+        generic map (
+          C_bits => 32
+        )
+        port map (
+          clk => clk, ce => gpio_ce(i), addr => dmem_addr(4 downto 2),
+          bus_write => dmem_write, byte_sel => dmem_byte_sel,
+          bus_in => cpu_to_dmem, bus_out => from_gpio(i),
+          gpio_irq => gpio_intr(i),
+          gpio_phys => gpio(32*i+31 downto 32*i) -- physical input/output
+        );
+        gpio_ce(i) <= io_addr_strobe when conv_integer(io_addr(11 downto 5)) = i else '0';
+    end generate;
+    G_gpio_decoder_intr: if C_gpios > 0 generate
+        with conv_integer(io_addr(11 downto 4)) select
+          gpio_range <= '1' when iomap_from(iomap_gpio, iomap_range) to iomap_to(iomap_gpio, iomap_range),
+                        '0' when others;
+        gpio_intr_joint <= gpio_intr(0);
+        -- TODO: currently only 32 gpio supported in fpgarduino core
+        -- when support for 128 gpio is there we should use this:
+        -- gpio_intr_joint <= '0' when conv_integer(gpio_intr) = 0 else '1';
+    end generate;
+
+    -- PID
+    G_pid:
+    if C_pid generate
+    pid_inst: entity work.pid
+    generic map (
+      C_pwm_bits => C_pid_pwm_bits,
+      C_prescaler => C_pid_prescaler,
+      C_fp => C_pid_fp,
+      C_precision => C_pid_precision,
+      C_simulator => C_pid_simulator,
+      C_pids => C_pids,
+      C_addr_unit_bits => C_pids_bits
+    )
+    port map (
+      clk => clk, ce => pid_ce, addr => dmem_addr(C_pids_bits+3 downto 2),
+      bus_write => dmem_write, byte_sel => dmem_byte_sel,
+      bus_in => cpu_to_dmem, bus_out => from_pid,
+      encoder_a_in  => pid_encoder_a,
+      encoder_b_in  => pid_encoder_b,
+      encoder_a_out => pid_encoder_a_out,
+      encoder_b_out => pid_encoder_b_out,
+      bridge_f_out => pid_bridge_f_out,
+      bridge_r_out => pid_bridge_r_out
+    );
+    with conv_integer(io_addr(11 downto 4)) select
+      pid_ce <= io_addr_strobe when iomap_from(iomap_pid, iomap_range) to iomap_to(iomap_pid, iomap_range),
+                           '0' when others;
+    pid_bridge_f <= pid_bridge_f_out;
+    pid_bridge_r <= pid_bridge_r_out;
+    end generate;
+
+    -- Timer
+    G_timer:
+    if C_timer generate
+    icp <= R_simple_out(3) & R_simple_out(0); -- during debug period, leds will serve as software-generated ICP
+    timer: entity work.timer
+    generic map (
+      C_pres => 10,
+      C_bits => 12
+    )
+    port map (
+      clk => clk, ce => timer_ce, addr => dmem_addr(5 downto 2),
+      bus_write => dmem_write, byte_sel => dmem_byte_sel,
+      bus_in => cpu_to_dmem, bus_out => from_timer,
+      timer_irq => timer_intr,
+      ocp_enable => ocp_enable, -- enable physical output
+      ocp => ocp, -- output compare signal
+      icp_enable => icp_enable, -- enable physical input
+      icp => icp -- input capture signal
+    );
+    with conv_integer(io_addr(11 downto 4)) select
+      timer_ce <= io_addr_strobe when iomap_from(iomap_timer, iomap_range) to iomap_to(iomap_timer, iomap_range),
+                             '0' when others;
+    end generate;
+
+    -- TV PAL composite signal generation
+    G_tv: if C_tv generate
+    -- data source (compositing2 fifo)
+    -- misnomer warning: we use "vga" signal names although no VGA here but TV
+    S_vga_enable <= '1' when R_fb_base_addr(31 downto 28) = C_xram_base else '0';
+    S_vga_fetch_enabled <= S_vga_enable and vga_fetch_next; -- drain fifo into display
+    S_vga_active_enabled <= S_vga_enable and not S_tv_vsync; -- frame active, pre-fill fifo
+    comp_fifo: entity work.compositing2_fifo
+    generic map (
+      C_width => C_tv_fifo_width,
+      C_height => C_tv_fifo_height,
+      C_data_width => C_tv_fifo_data_width,
+      C_addr_width => C_tv_fifo_addr_width
+    )
+    port map (
+      clk => clk,
+      clk_pixel => clk,
+      addr_strobe => vga_addr_strobe,
+      addr_out => vga_addr,
+      data_ready => vga_data_ready, -- data valid for read acknowledge from RAM
+      data_in => from_xram,
+      -- data_in => x"00000001", -- test pattern vertical lines
+      --data_in(7 downto 0) => vga_addr(9 downto 2), -- test if address is in sync with video frame
+      -- data_in(31 downto 8) => (others => '0'),
+      base_addr => R_fb_base_addr(29 downto 2),
+      active => S_vga_active_enabled,
+      frame => vga_frame, -- output, for interrupt, 1 cpu clock pulse wide exactly
+      data_out => vga_data_from_fifo(C_tv_fifo_data_width-1 downto 0),
+      fetch_next => S_vga_fetch_enabled
+      -- dirty hack upper bit of base enables fetching
+      -- works if RAM is mapped to 0x80000000 or above
+    );
+    -- composite video signal generator
+    S_tv_mode <= "00" when S_vga_enable='1' else "10";
+    tvbitmap: entity work.tv
+    port map
+    (
+      clk => clk,
+      clk_dac => clk_pixel_shift,
+      fetch_next => vga_fetch_next,
+      pixel_data => vga_data_from_fifo(15 downto 0),
+      mode => S_tv_mode, -- "00" is 8-bit mode, "01" is 16-bit mode, "10" is test picture
+      dac_out => S_tv_dac,
+      vblank => S_vga_vblank,
+      vsync => S_tv_vsync -- output, 1 short pulse before every new frame
+    );
+    -- address decoder to set base address and clear interrupts
+    with conv_integer(io_addr(11 downto 4)) select
+      vga_ce <= io_addr_strobe when iomap_from(iomap_vga, iomap_range) to iomap_to(iomap_vga, iomap_range),
+                           '0' when others;
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if vga_ce = '1' and dmem_write = '1' then
+                -- cpu write: writes Framebuffer base
+                if C_big_endian then
+                   R_fb_base_addr <= -- XXX: revisit, probably wrong;
+                      cpu_to_dmem(11 downto 8) &
+                      cpu_to_dmem(23 downto 16) &
+                      cpu_to_dmem(31 downto 26);
+                else
+                   R_fb_base_addr <= cpu_to_dmem(31 downto 2);
+                end if;
+            end if;
+            -- interrupt handling: (CPU read or write will clear interrupt)
+            if vga_ce = '1' then -- and dmem_write = '0' then
+                R_fb_intr <= '0';
+            else
+                if vga_frame = '1' then -- vga_frame (should last 1 cpu clock exactly)
+                    R_fb_intr <= '1';
+                end if;
+            end if;
+        end if; -- end rising edge
+    end process;
+    end generate; -- C_tv
+
+    -- VGA/HDMI
+    G_vgahdmi:
+    if C_vgahdmi generate
+    S_vga_enable <= '1' when R_fb_base_addr(31 downto 28) = C_xram_base else '0';
+    S_vga_fetch_enabled <= S_vga_enable and vga_fetch_next; -- drain fifo into display
+    S_vga_active_enabled <= S_vga_enable and not S_vga_vsync; -- frame active, pre-fill fifo
+
+    -- vga_data(7 downto 0) <= vga_addr(12 downto 5);
+    -- vga_data(7 downto 0) <= x"0F";
+    vga_data <= from_xram;
+
+    -- data source: cache cpu clock synchronous
+    G_no_video_cache: if C_video_cache_size=0 generate
+      -- bypass the cache
+      vga_addr_strobe <= video_fifo_addr_strobe;
+      vga_addr <= video_fifo_addr;
+      video_fifo_data_ready <= vga_data_ready; -- data valid for read acknowledge from RAM
+      video_fifo_data <= vga_data; -- from XRAM
+    end generate;
+
+    G_yes_video_cache_i: if C_video_cache_use_i and C_video_cache_size > 0 generate
+    -- currently i-cache can't do constant streaming for video
+    -- until it is fixed, use d-cache
+    video_cache_i: entity work.video_cache_i
+    generic map
+    (
+        C_icache_size => C_video_cache_size,
+        C_cached_addr_bits => C_cached_addr_bits, -- address bits of cached RAM (size=2^n) 20=1MB 25=32MB
+        C_icache_expire => false -- true: i-cache will immediately expire every cached data
+    )
+    port map
+    (
+      clk => clk,
+      -- to external RAM
+      imem_addr_strobe => vga_addr_strobe,
+      imem_addr(31 downto 30) => open,
+      imem_addr(29 downto 2) => vga_addr,
+      imem_data_in => vga_data, -- input from XRAM
+      imem_data_ready => vga_data_ready, -- input from XRAM
+      -- to video FIFO
+      i_addr_strobe => video_fifo_addr_strobe,
+      i_cacheable => video_fifo_suggest_cache,
+      i_addr(31 downto 30) => "10",
+      i_addr(29 downto 2) => video_fifo_addr,
+      i_ready => video_fifo_data_ready, -- output to fifo
+      i_data => video_fifo_data -- output from cache to fifo
+    );
+    end generate;
+
+    G_yes_video_cache_d: if (not C_video_cache_use_i) and C_video_cache_size > 0 generate
+    video_cache_d: entity work.video_cache_d
+    generic map
+    (
+        C_dcache_size => C_video_cache_size,
+        C_cached_addr_bits => C_cached_addr_bits -- address bits of cached RAM (size=2^n) 20=1MB 25=32MB
+    )
+    port map
+    (
+      clk => clk,
+      -- to external RAM
+      dmem_addr_strobe => vga_addr_strobe,
+      dmem_addr(31 downto 30) => open,
+      dmem_addr(29 downto 2) => vga_addr,
+      dmem_data_in => vga_data, -- input from XRAM
+      dmem_data_ready => vga_data_ready, -- input from XRAM
+      -- to video FIFO
+      cpu_d_cacheable => video_fifo_suggest_cache,
+      -- cpu_d_strobe => video_fifo_addr_strobe,
+      cpu_d_strobe => '1', -- permanent strobe works better
+      cpu_d_addr(31 downto 30) => "--", -- random MSB, ignored
+      cpu_d_addr(29 downto 2) => video_fifo_addr,
+      cpu_d_ready => video_fifo_data_ready, -- output to fifo
+      cpu_d_byte_sel => "1111", -- always 32 bit fetch
+      cpu_d_write => '0', -- never write
+      cpu_d_data_out => (others => '-'), -- input random data
+      cpu_d_data_in => video_fifo_data -- output from cache to fifo
+    );
+    end generate;
+
+    -- data source: FIFO - cross clock domain cpu-pixel
+    G_vgabit_c2: if true generate
+    -- compositing2 video accelerator, shows linked list of pixel data
+    comp_fifo: entity work.compositing2_fifo
+    generic map (
+      C_timeout => C_vgahdmi_fifo_timeout,
+      C_width => C_vgahdmi_fifo_width,
+      C_height => C_vgahdmi_fifo_height,
+      C_data_width => C_vgahdmi_fifo_data_width,
+      C_addr_width => C_vgahdmi_fifo_addr_width
+    )
+    port map (
+      clk => clk,
+      clk_pixel => clk_pixel,
+      suggest_cache => video_fifo_suggest_cache,
+      addr_strobe => video_fifo_addr_strobe,
+      addr_out => video_fifo_addr,
+      data_ready => video_fifo_data_ready, -- data valid for read acknowledge from RAM
+      data_in => video_fifo_data, -- from cache
+      -- data_in => x"00AA00AA", -- test pattern gray vertical line over whole screen
+      base_addr => R_fb_base_addr(29 downto 2),
+      active => S_vga_active_enabled,
+      frame => vga_frame,
+      data_out => vga_data_from_fifo(C_vgahdmi_fifo_data_width-1 downto 0),
+      fetch_next => S_vga_fetch_enabled
+    );
+    end generate;
+
+    G_vgabit_linear: if false generate
+    -- linear bitmap - shows linear memory block
+      video_fifo_suggest_cache <= '1';
+      linear_fifo: entity work.videofifo
+          generic map (
+            C_bram => true,
+            C_step => C_vgahdmi_fifo_width,
+            C_postpone_step => 0,
+            C_width => C_vgahdmi_fifo_addr_width -- buffer size = 4 * 2^width bytes
+          )
+          port map (
+            clk => clk,
+            clk_pixel => clk_pixel,
+            addr_strobe => video_fifo_addr_strobe,
+            addr_out => video_fifo_addr,
+            data_ready => video_fifo_data_ready, -- data valid for read acknowledge from cache
+            data_in => video_fifo_data, -- from cache
+            -- data_in => x"00000001", -- test pattern vertical lines
+            base_addr => R_fb_base_addr(29 downto 2),
+            start => S_vga_active_enabled,
+            frame => vga_frame,
+            data_out => vga_data_from_fifo(31 downto 0),
+            rewind => vga_line_repeat,
+            fetch_next => S_vga_fetch_enabled
+          );
+    end generate;
+
+    -- VGA video generator - pixel clock synchronous
+    vgabitmap: entity work.vga
+    --generic map (
+    --  C_dbl_y => 1
+    --)
+    port map (
+      clk_pixel => clk_pixel,
+      test_picture => not S_vga_enable, -- shows test picture when VGA is disabled (on startup)
+      fetch_next => vga_fetch_next,
+      line_repeat => vga_line_repeat,
+      red_byte    => vga_data_from_fifo(7 downto 5) & vga_data_from_fifo(5) & vga_data_from_fifo(5) & vga_data_from_fifo(5) & vga_data_from_fifo(5) & vga_data_from_fifo(5),
+      green_byte  => vga_data_from_fifo(4 downto 2) & vga_data_from_fifo(2) & vga_data_from_fifo(2) & vga_data_from_fifo(2) & vga_data_from_fifo(2) & vga_data_from_fifo(2),
+      blue_byte   => vga_data_from_fifo(1 downto 0) & vga_data_from_fifo(0) & vga_data_from_fifo(0) & vga_data_from_fifo(0) & vga_data_from_fifo(0) & vga_data_from_fifo(0) & vga_data_from_fifo(0),
+      vga_r => S_vga_r,
+      vga_g => S_vga_g,
+      vga_b => S_vga_b,
+      vga_hsync => S_vga_hsync,
+      vga_vsync => S_vga_vsync,
+      vga_blank => S_vga_blank, -- '1' when outside of horizontal or vertical graphics area
+      vga_vblank => S_vga_vblank -- '1' when outside of vertical graphics area (used for vblank interrupt)
+    );
+    vga_r <= S_vga_r;
+    vga_g <= S_vga_g;
+    vga_b <= S_vga_b;
+    vga_vsync <= not S_vga_vsync;
+    vga_hsync <= not S_vga_hsync;
+
+    G_vgahdmi_tmds_display: if not C_lvds_display generate
+    -- DVI-D TMDS Encoder Block
+    -- XXX Fixme: unify this block with vgatextmode (use same signal names)
+    G_vgahdmi_dvid: entity work.vga2dvid
+    generic map (
+      C_ddr     => C_dvid_ddr,
+      C_depth   => 8 -- 8bpp (8 bit per pixel)
+    )
+    port map (
+      clk_pixel => clk_pixel, clk_shift => clk_pixel_shift,
+
+      in_red   => S_vga_r,
+      in_green => S_vga_g,
+      in_blue  => S_vga_b,
+
+      in_blank => S_vga_blank,
+      in_hsync => S_vga_hsync,
+      in_vsync => S_vga_vsync,
+
+      -- single-ended output ready for differential buffers
+      out_red   => dvid_red,
+      out_green => dvid_green,
+      out_blue  => dvid_blue,
+      out_clock => dvid_clock
+    );
+    end generate;
+
+    G_vgahdmi_lvds_display: if C_lvds_display generate
+    -- LCD LVDS Encoder Block
+    -- XXX Fixme: unify this block with vgatextmode (use same signal names)
+    G_vgahdmi_lcd: entity work.vga2lcd
+    generic map (
+      C_depth => 8 -- 8bpp (8 bit per pixel)
+    )
+    port map (
+      clk_pixel => clk_pixel, clk_shift => clk_pixel_shift,
+
+      in_red   => S_vga_r,
+      in_green => S_vga_g,
+      in_blue  => S_vga_b,
+
+      in_blank => S_vga_blank,
+      in_hsync => S_vga_hsync,
+      in_vsync => S_vga_vsync,
+
+      -- single-ended output ready for differential buffers
+      out_red_green  => dvid_red,
+      out_green_blue => dvid_green,
+      out_blue_sync  => dvid_blue,
+      out_clock      => dvid_clock
+    );
+    end generate;
+
+    -- address decoder to set base address and clear interrupts
+    with conv_integer(io_addr(11 downto 4)) select
+      vga_ce <= io_addr_strobe when iomap_from(iomap_vga, iomap_range) to iomap_to(iomap_vga, iomap_range),
+                           '0' when others;
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if vga_ce = '1' and dmem_write = '1' then
+                -- cpu write: writes Framebuffer base
+                if C_big_endian then
+                   R_fb_base_addr <= -- XXX: revisit, probably wrong;
+                      cpu_to_dmem(11 downto 8) &
+                      cpu_to_dmem(23 downto 16) &
+                      cpu_to_dmem(31 downto 26);
+                else
+                   R_fb_base_addr <= cpu_to_dmem(31 downto 2);
+                end if;
+            end if;
+            -- interrupt handling: (CPU read or write will clear interrupt)
+            if vga_ce = '1' then -- and dmem_write = '0' then
+                R_fb_intr <= '0';
+            else
+                if vga_frame = '1' then
+                    R_fb_intr <= '1';
+                end if;
+            end if;
+        end if; -- end rising edge
+    end process;
+    end generate; -- G_vgahdmi
+
+    -- rotating LED strip POV
+    G_ledstrip_module:
+    if C_ledstrip generate
+      -- address decoder to handle mmaped io registers
+      with conv_integer(io_addr(11 downto 4)) select
+        ledstrip_ce <= io_addr_strobe when iomap_from(iomap_ledstrip, iomap_range) to iomap_to(iomap_ledstrip, iomap_range),
+                                  '0' when others;
+      ledstrip_driver: entity work.ledstrip
+      generic map (
+        C_clk_Hz => C_clk_freq*1000000, -- module timing needs to know clk freq in Hz
+        C_xram_base => C_xram_base,
+        C_ledstrip_full_circle => C_ledstrip_full_circle, -- number of sensor pulses per full rotation
+        C_width => C_ledstrip_fifo_width,
+        C_height => C_ledstrip_fifo_height,
+        C_data_width => C_ledstrip_fifo_data_width,
+        C_addr_width => C_ledstrip_fifo_addr_width
+      )
+      port map (
+        clk => clk,
+        ce => ledstrip_ce,
+        addr => dmem_addr(3 downto 2),
+        bus_write => dmem_write, byte_sel => dmem_byte_sel,
+        bus_in => cpu_to_dmem, bus_out => from_ledstrip,
+      
+        video_addr_strobe => vga_addr_strobe,
+        video_addr => vga_addr,
+        video_data_ready => vga_data_ready,
+        from_xram => from_xram,
+      
+        video_frame => vga_frame,
+        rotation_sensor => ledstrip_rotation,
+        ledstrip_out => S_ledstrip_out
+      );
+      ledstrip_out <= (others => S_ledstrip_out);
+      process(clk)
+      begin
+        -- simple interrupt handling: (any CPU read or write will clear interrupt)
+        if ledstrip_ce = '1' then
+          R_fb_intr <= '0';
+        else
+          if vga_frame = '1' then
+            R_fb_intr <= '1';
+          end if;
+        end if;
+      end process;
+    end generate; -- G_ledstrip
+
+    -- VGA textmode
+    G_vgatext:
+    if C_vgatext generate
+      vga_video: entity work.VGA_textmode
+      generic map (
+        C_vgatext_mode => C_vgatext_mode,
+        C_vgatext_bits => C_vgatext_bits,
+        C_vgatext_bram_mem => C_vgatext_bram_mem,
+        C_vgatext_external_mem => C_vgatext_external_mem,
+        C_vgatext_reset => C_vgatext_reset,
+        C_vgatext_palette => C_vgatext_palette,
+        C_vgatext_text => C_vgatext_text,
+        C_vgatext_font_bram8 => C_vgatext_font_bram8,
+        C_vgatext_reg_read => C_vgatext_reg_read,
+        C_vgatext_text_fifo => C_vgatext_text_fifo,
+        C_vgatext_char_height => C_vgatext_char_height,
+        C_vgatext_font_height => C_vgatext_font_height,
+        C_vgatext_font_depth => C_vgatext_font_depth,
+        C_vgatext_font_linedouble => C_vgatext_font_linedouble,
+        C_vgatext_font_widthdouble => C_vgatext_font_widthdouble,
+        C_vgatext_monochrome => C_vgatext_monochrome,
+        C_vgatext_finescroll => C_vgatext_finescroll,
+        C_vgatext_cursor => C_vgatext_cursor,
+        C_vgatext_cursor_blink => C_vgatext_cursor_blink,
+        C_vgatext_bitmap => C_vgatext_bitmap,
+        C_vgatext_bitmap_depth => C_vgatext_bitmap_depth,
+        C_vgatext_bitmap_fifo_data_width => C_vgatext_bitmap_fifo_data_width,
+        C_vgatext_bitmap_fifo => C_vgatext_bitmap_fifo
+      )
+      port map (
+        reset_i => sio_break_internal(0),
+        clk_i => clk, ce_i => vga_textmode_ce, bus_addr_i => dmem_addr(4 downto 2),
+        bus_write_i => dmem_write, byte_sel_i => dmem_byte_sel,
+        bus_data_i => cpu_to_dmem, bus_data_o => from_vga_textmode,
+
+        clk_pixel_i => clk_pixel,
+
+        bram_addr_o => vga_textmode_bram_addr,
+        bram_data_i => vga_textmode_bram_data_in,
+        text_active_o => vga_textmode_text_active,
+
+        textfifo_addr_o => vga_textmode_text_addr,
+        textfifo_data_i => vga_textmode_text_data,
+        textfifo_strobe_o => vga_textmode_text_strobe,
+        textfifo_rewind_o =>vga_textmode_text_rewind,
+
+        bitmap_strobe_o => vga_textmode_bitmap_strobe,
+        bitmap_addr_o => vga_textmode_bitmap_addr,
+        bitmap_ready_i => vga_textmode_bitmap_ready,
+        bitmap_data_i => vga_textmode_bitmap_data,
+        bitmap_rewind_o => vga_textmode_bitmap_rewind,
+        bitmap_active_o => vga_textmode_bitmap_active,
+
+        red_o => vga_textmode_red,
+        green_o => vga_textmode_green,
+        blue_o => vga_textmode_blue,
+        hsync_o => vga_textmode_hsync,
+        vsync_o => vga_textmode_vsync,
+        blank_o => vga_textmode_blank
+      );
+
+      vga_r(7 downto 8-C_vgatext_bits) <= vga_textmode_red;
+      vga_g(7 downto 8-C_vgatext_bits) <= vga_textmode_green;
+      vga_b(7 downto 8-C_vgatext_bits) <= vga_textmode_blue;
+      vga_vsync <= vga_textmode_vsync;
+      vga_hsync <= vga_textmode_hsync;
+
+      -- video FIFO for text+color
+      G_vgatext_fifo:
+      if C_vgatext_text AND C_vgatext_text_fifo generate
+        videofifo: entity work.videofifo
+          generic map (
+            C_postpone_step => C_vgatext_text_fifo_postpone_step,
+            C_step => C_vgatext_text_fifo_step,
+            C_width => C_vgatext_text_fifo_width -- length = 4 * 2^width
+          )
+          port map (
+            clk => clk,
+            clk_pixel => clk_pixel,
+            addr_strobe => vga_textmode_text_sdram_strobe,
+            addr_out => vga_textmode_text_sdram_addr,
+            data_ready => vga_textmode_text_sdram_ready, -- data valid for read acknowledge from RAM
+            data_in => from_xram, -- from SDRAM or BRAM
+            -- data_in => x"00000001", -- test pattern vertical lines
+            base_addr => vga_textmode_text_addr,
+            start => vga_textmode_text_active,
+            frame => vga_textmode_text_frame,
+            data_out => vga_textmode_text_data,
+            fetch_next => vga_textmode_text_strobe,
+            rewind => vga_textmode_text_rewind
+          );
+      end generate; -- G_vgatext_fifo
+
+      S_vga_enable <= '1' when vga_textmode_bitmap_addr /= 0 else '0'; -- XXX fixme apply it like on vghadmi
+      S_vga_fetch_enabled <= S_vga_enable and vga_textmode_bitmap_strobe; -- drain fifo into display
+      S_vga_active_enabled <= S_vga_enable and vga_textmode_bitmap_active; -- frame active, pre-fill fifo
+
+      -- video FIFO for bitmap
+      G_vgatext_bitmap_fifo:
+      if C_vgatext_bitmap AND C_vgatext_bitmap_fifo generate
+        bitmap_videofifo: entity work.compositing2_fifo
+          generic map (
+            C_timeout => C_vgatext_bitmap_fifo_timeout,
+            C_width => C_vgatext_bitmap_fifo_step,
+            C_height => C_vgatext_bitmap_fifo_height,
+            C_data_width => C_vgatext_bitmap_fifo_data_width,
+            C_addr_width => C_vgatext_bitmap_fifo_addr_width
+          )
+          port map (
+            clk => clk,
+            clk_pixel => clk_pixel,
+            addr_strobe => vga_addr_strobe,
+            addr_out => vga_addr,
+            data_ready => vga_data_ready, -- data valid for read acknowledge from RAM
+            data_in => from_xram, -- from SDRAM or BRAM
+            -- data_in => x"00000001", -- test pattern vertical lines
+            base_addr => vga_textmode_bitmap_addr,
+            active => S_vga_active_enabled,
+            frame => vga_textmode_bitmap_frame,
+            data_out => vga_textmode_bitmap_data,
+            fetch_next => S_vga_fetch_enabled -- vga_textmode_bitmap_strobe
+          );
+      end generate; -- G_vgatext_bitmap_fifo
+
+      -- VGA textmode BRAM (for text+attribute bytes and font)
+      G_vga_textmode_bram: if C_vgatext_text and C_vgatext_bram_mem > 0 generate
+        G_vgatext_bram: entity work.vga_textmode_bram
+          generic map (
+            C_mem_size     => C_vgatext_bram_mem,
+            C_label        => C_vgatext_label,
+            C_monochrome   => C_vgatext_monochrome,
+            C_font_height  => C_vgatext_font_height,
+            C_font_depth   => C_vgatext_font_depth
+          )
+          port map (
+            clk => clk, imem_addr => vga_textmode_bram_addr, imem_data_out => vga_textmode_bram_data,
+            dmem_write => vga_textmode_dmem_write,
+            dmem_byte_sel => dmem_byte_sel, dmem_addr => dmem_addr,
+            dmem_data_out => vga_textmode_dmem_to_cpu, dmem_data_in => cpu_to_dmem
+          );
+      end generate; -- G_vga_textmode_bram
+
+      -- VGA textmode font BRAM (8-bit)
+      G_vga_textmode_bram8: if C_vgatext_font_bram8 generate
+        G_vgatext_bram8: entity work.VGA_textmode_font_bram8
+          generic map (
+            C_font_height => C_vgatext_font_height,
+            C_font_depth  => C_vgatext_font_depth
+          )
+          port map (
+            clk => clk, imem_addr => vga_textmode_bram_addr, imem_data_out => vga_textmode_bram8_data,
+            dmem_write => vga_textmode_dmem8_write,
+            dmem_byte_sel => dmem_byte_sel, dmem_addr => dmem_addr(15 downto 2),
+            dmem_data_out => open, dmem_data_in => cpu_to_dmem(7 downto 0)
+          );
+      end generate; -- G_vga_textmode_bram8
+
+      -- DVI-D Encoder Block (Thanks Hamster ;-)
+      G_vgatext_tmds_display: if not C_lvds_display generate
+      G_vgatext_dvid: entity work.vga2dvid
+        generic map (
+          C_ddr     => C_dvid_ddr,
+          C_depth   => C_vgatext_bits
+        )
+        port map (
+          clk_pixel => clk_pixel, clk_shift => clk_pixel_shift,
+
+          in_red   => vga_textmode_red(C_vgatext_bits-1 downto 0),
+          in_green => vga_textmode_green(C_vgatext_bits-1 downto 0),
+          in_blue  => vga_textmode_blue(C_vgatext_bits-1 downto 0),
+
+          in_blank => vga_textmode_blank,
+          in_hsync => vga_textmode_hsync,
+          in_vsync => vga_textmode_vsync,
+
+          -- single-ended output for differential buffers
+          out_red   => dvid_red,
+          out_green => dvid_green,
+          out_blue  => dvid_blue,
+          out_clock => dvid_clock
+        );
+      end generate;
+      G_vgatext_lvds_display: if C_lvds_display generate
+      G_vgatext_lcd: entity work.vga2lcd
+        generic map (
+          C_depth   => C_vgatext_bits
+        )
+        port map (
+          clk_pixel => clk_pixel, clk_shift => clk_pixel_shift,
+
+          in_red   => vga_textmode_red(C_vgatext_bits-1 downto 0),
+          in_green => vga_textmode_green(C_vgatext_bits-1 downto 0),
+          in_blue  => vga_textmode_blue(C_vgatext_bits-1 downto 0),
+
+          in_blank => vga_textmode_blank,
+          in_hsync => vga_textmode_hsync,
+          in_vsync => vga_textmode_vsync,
+
+          -- single-ended output for differential buffers
+          out_red_green  => dvid_red,
+          out_green_blue => dvid_green,
+          out_blue_sync  => dvid_blue,
+          out_clock      => dvid_clock
+        );
+      end generate;
+
+      vgatext_intr:
+      process(clk) begin
+        if rising_edge(clk) then
+            if vga_textmode_ce = '1' then -- interrupt handling: (CPU read or write will clear interrupt)
+              R_fb_intr <= '0';
+            else
+              if vga_textmode_text_frame = '1' OR vga_textmode_bitmap_frame = '1' then
+                R_fb_intr <= '1';
+              end if;
+            end if;
+        end if; -- end rising edge
+      end process;
+
+      pass_bram8_data: if C_vgatext_font_bram8 generate
+        vga_textmode_bram_data_in <= vga_textmode_bram_data(31 downto 8) & vga_textmode_bram8_data;
+      end generate; -- pass_bram8_data
+  
+      pass_bram32_data: if not C_vgatext_font_bram8 generate
+        vga_textmode_bram_data_in <= vga_textmode_bram_data;
+      end generate; -- pass_bram32_data
+
+      vga_textmode_dmem_write <= dmem_addr_strobe and dmem_write
+                            when dmem_addr(31 downto 28) = C_vgatext_bram_base
+                             AND (NOT C_vgatext_font_bram8 OR dmem_addr(15) = '0')
+                            else '0';
+
+      G_vgatext_bram8_wr: if C_vgatext_font_bram8 generate
+        vga_textmode_dmem8_write <= dmem_addr_strobe and dmem_write
+                               when dmem_addr(31 downto 28) = C_vgatext_bram_base AND dmem_addr(15) = '1'
+                               else '0';
+      end generate; -- G_vgatext_bram8_wr
+
+      with conv_integer(io_addr(11 downto 4)) select
+        vga_textmode_ce <= io_addr_strobe when iomap_from(iomap_vga_textmode, iomap_range) to iomap_to(iomap_vga_textmode, iomap_range),
+        '0' when others;
+
+    end generate; -- G_vgatext
+
+    --
+    -- PCM audio
+    --
+    G_pcm:
+    if C_pcm generate
+    pcm: entity work.pcm
+    port map (
+      clk => clk, io_ce => pcm_ce, io_addr => io_addr(3 downto 2),
+      io_bus_write => dmem_write, io_byte_sel => dmem_byte_sel,
+      io_bus_in => cpu_to_dmem, io_bus_out => from_pcm,
+      addr_strobe => pcm_addr_strobe, data_ready => pcm_data_ready,
+      addr_out => pcm_addr, data_in => from_xram,
+      out_pcm_l => pcm_bus_l, out_pcm_r => pcm_bus_r,
+      out_r => pcm_r, out_l => pcm_l
+    );
+    with conv_integer(io_addr(11 downto 4)) select
+      pcm_ce <= io_addr_strobe when iomap_from(iomap_pcm, iomap_range) to iomap_to(iomap_pcm, iomap_range),
+                           '0' when others;
+    -- audible debugging of RDS internal filters
+    --jack_tip  <= (others => pwm_filt_l);
+    --jack_ring <= (others => pwm_filt_r);
+    jack_tip  <= S_tv_dac when C_tv else (others => pcm_l);
+    jack_ring <= (others => pcm_r);
+    end generate;
+    
+    G_tvout_no_pcm: if C_tv and not C_pcm generate
+    jack_tip <= S_tv_dac;
+    end generate;
+
+    -- CW transmitter
+    -- one selected simple_out enables carrier wave (CW) modulation
+    -- used for carriers of higher frequency than FM DDS
+    -- can produce (433 MHz)
+    G_cw_antenna:
+    if C_cw_simple_out >= 0 and C_simple_out > C_cw_simple_out generate
+      cw_antenna <= R_simple_out(C_cw_simple_out) and clk_cw;
+    end generate;
+
+    -- FM/RDS
+    G_fmrds:
+    if C_fmrds generate
+    fm_tx: entity work.fm
+    generic map (
+      c_fmdds_hz => C_fmdds_hz, -- Hz FMDDS clock frequency
+      C_rds_msg_len => C_rds_msg_len, -- allocate RAM for RDS message
+      C_stereo => C_fm_stereo,
+      C_filter => C_fm_filter,
+      C_downsample => C_fm_downsample,
+      -- multiply/divide CPU clock to produce 1.824 MHz clock
+      c_rds_clock_multiply => C_rds_clock_multiply,
+      c_rds_clock_divide => C_rds_clock_divide
+    )
+    port map (
+      clk => clk, -- RDS and PCM processing clock 81.25 MHz
+      clk_fmdds => clk_fmdds,
+      ce => fmrds_ce, addr => dmem_addr(3 downto 2),
+      bus_write => dmem_write, byte_sel => dmem_byte_sel,
+      bus_in => cpu_to_dmem, bus_out => from_fmrds,
+      pcm_in_left => pcm_bus_l,
+      pcm_in_right => pcm_bus_r,
+      pwm_out_left => pwm_filt_l,
+      pwm_out_right => pwm_filt_r,
+      fm_antenna => fm_antenna
+    );
+    with conv_integer(io_addr(11 downto 4)) select
+      fmrds_ce <= io_addr_strobe when iomap_from(iomap_fmrds, iomap_range) to iomap_to(iomap_fmrds, iomap_range),
+                             '0' when others;
+    end generate;
+
+
+    -- Block RAM
+    dmem_bram_enable <= dmem_addr_strobe when dmem_addr(31 downto 28) = x"0"
+      else '0';
+    bram: entity work.bram
+    generic map (
+	C_bram_size => C_bram_size,
+	C_arch => C_arch,
+	C_big_endian => C_big_endian,
+	C_boot_spi => C_boot_spi
+    )
+    port map (
+	clk => clk, imem_addr_strobe => imem_addr_strobe,
+	imem_addr => imem_addr, imem_data_out => bram_i_to_cpu,
+	imem_data_ready => bram_i_ready, dmem_data_ready => bram_d_ready,
+	dmem_addr_strobe => dmem_bram_enable, dmem_write => dmem_write,
+	dmem_byte_sel => dmem_byte_sel, dmem_addr => dmem_addr,
+	dmem_data_out => bram_d_to_cpu, dmem_data_in => cpu_to_dmem
+    );
+
+    -- Debugging SIO instance
+    G_debug_sio:
+    if C_debug generate
+    debug_sio: entity work.sio
+    generic map (
+      C_clk_freq => C_clk_freq,
+      C_big_endian => false
+    )
+    port map (
+      clk => clk, ce => '1', txd => deb_tx, rxd => sio_rxd(0),
+      bus_write => deb_sio_tx_strobe, byte_sel => "0001",
+      bus_in(7 downto 0) => debug_to_sio_data,
+      bus_in(31 downto 8) => x"000000",
+      bus_out(7 downto 0) => sio_to_debug_data,
+      bus_out(8) => deb_sio_rx_done, bus_out(9) => open,
+      bus_out(10) => deb_sio_tx_busy, bus_out(31 downto 11) => open,
+      break => open
+    );
+    end generate;
+
+    sio_txd(0) <= sio_tx(0) when not C_debug or debug_active = '0' else deb_tx;
+
+end Behavioral;
+

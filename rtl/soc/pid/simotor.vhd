@@ -14,6 +14,10 @@ use work.f32c_pack.all;
 
 entity simotor is
   generic(
+<<<<<<< HEAD
+=======
+    prescaler      : integer := 0; -- slow down the time
+>>>>>>> upstream/master
     motor_power    : integer := 512; -- acceleration
     motor_speed    : integer := 12;  -- inverse log2 friction proportional to speed
     -- larger motor_speed values allow higher motor top speed
@@ -31,6 +35,10 @@ end simotor;
 architecture syn of simotor is
   component simotor_v
     generic (
+<<<<<<< HEAD
+=======
+      prescaler      : integer := 0;
+>>>>>>> upstream/master
       motor_power    : integer := 512; -- acceleration
       motor_speed    : integer := 12;  -- inverse log2 friction proportional to speed
       -- larger motor_speed values allow higher motor top speed
@@ -49,6 +57,10 @@ architecture syn of simotor is
 begin
   simotor_inst: simotor_v
   generic map(
+<<<<<<< HEAD
+=======
+    prescaler => prescaler,
+>>>>>>> upstream/master
     motor_power => motor_power,
     motor_speed => motor_speed,
     motor_friction => motor_friction

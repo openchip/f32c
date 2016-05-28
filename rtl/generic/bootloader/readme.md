@@ -19,4 +19,9 @@ copy-paste loader.vhd.include into appropriate file here
 using text editor, copy paste lines like this:
 x"00", x"00", x"00", x"00", x"21", x"40", x"00", x"00",
 into bootloader vhd file:
+<<<<<<< HEAD
 boot_sio_mi32el.vhd
+=======
+boot_sio_mi32el.vhd -- generic f32c bootloader
+boot_rom_mi32el.vhd -- SPI flash rom f32c bootloader (for ULX2S boards)
+>>>>>>> upstream/master

@@ -76,7 +76,11 @@ architecture Structure of sram is
     -- Bus interface registers
     signal R_bus_out: std_logic_vector(31 downto 0);	-- to CPU bus
 
+<<<<<<< HEAD
     -- Bus interface signals (resolved from bus_in record via R_cur_port)
+=======
+    -- Bus interface signals (resolved from bus_in record via R_next_port)
+>>>>>>> upstream/master
     signal addr_strobe: std_logic;			-- from CPU bus
     signal write: std_logic;				-- from CPU bus
     signal byte_sel: std_logic_vector(3 downto 0);	-- from CPU bus
@@ -155,7 +159,12 @@ begin
 	    R_ack_bitmap <= (others => '0');
 	    R_snoop_cycle <= '0';
 
+<<<<<<< HEAD
 	    R_prio_pending <= R_cur_port /= C_prio_port and
+=======
+	    R_prio_pending <=
+	      (R_cur_port /= C_prio_port or R_phase = C_phase_idle) and
+>>>>>>> upstream/master
 	      C_prio_port >= 0 and bus_in(C_prio_port).addr_strobe = '1';
 
 	    if R_phase = C_phase_idle + 1 and R_cur_port /= C_prio_port then
@@ -169,13 +178,22 @@ begin
 		R_ubl <= '0';
 		R_lbl <= '0';
 		R_d <= (others => 'Z');
+<<<<<<< HEAD
 		if R_ack_bitmap(R_cur_port) = '1' or addr_strobe = '0' then
 		    -- idle
 		    R_cur_port <= next_port;
+=======
+		if R_ack_bitmap(R_next_port) = '1' or addr_strobe = '0' then
+		    -- idle
+>>>>>>> upstream/master
 		    R_ubl <= '1';
 		    R_lbl <= '1';
 		else
 		    -- start a new transaction
+<<<<<<< HEAD
+=======
+		    R_cur_port <= R_next_port;
+>>>>>>> upstream/master
 		    R_phase <= C_phase_idle + 1;
 		    R_byte_sel_hi <= byte_sel(3 downto 2);
 		    R_a <= addr & '0';
@@ -193,7 +211,11 @@ begin
 			    R_phase <= C_phase_write_upper_half;
 			end if;
 			-- we can safely acknowledge the write immediately
+<<<<<<< HEAD
 			R_ack_bitmap(R_cur_port) <= '1';
+=======
+			R_ack_bitmap(R_next_port) <= '1';
+>>>>>>> upstream/master
 			R_snoop_addr(19 downto 2) <= addr; -- XXX
 			R_snoop_cycle <= '1';
 		    end if;
@@ -230,7 +252,10 @@ begin
 		    end if;
 		else
 		    R_phase <= C_phase_idle;
+<<<<<<< HEAD
 		    R_cur_port <= next_port;
+=======
+>>>>>>> upstream/master
 		    R_ubl <= '1';
 		    R_lbl <= '1';
 		end if;
@@ -242,7 +267,10 @@ begin
 		    R_phase <= R_phase + 1;
 		else
 		    R_phase <= C_phase_idle;
+<<<<<<< HEAD
 		    R_cur_port <= next_port;
+=======
+>>>>>>> upstream/master
 		end if;
 		-- physical signals to SRAM: terminate 16-bit write
 		R_wel <= '1';
@@ -261,7 +289,10 @@ begin
 		R_d <= R_out_word(31 downto 16);
 	    elsif R_write_cycle and R_phase = C_phase_write_terminate then
 		R_phase <= C_phase_idle;
+<<<<<<< HEAD
 		R_cur_port <= next_port;
+=======
+>>>>>>> upstream/master
 		-- physical signals to SRAM: terminate 16-bit write
 		R_wel <= '1';
 		R_ubl <= '1';

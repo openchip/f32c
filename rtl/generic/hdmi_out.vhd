@@ -27,13 +27,18 @@
 --
 
 -- vendor-independent module for simulating differential HDMI output
+<<<<<<< HEAD:rtl/generic/hdmi_out.vhd
 -- this module is untested and probably will not work
+=======
+-- this module tested on scarab and it works :)
+>>>>>>> upstream/master:rtl/generic/hdmi_out.vhd
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
+<<<<<<< HEAD:rtl/generic/hdmi_out.vhd
 use work.f32c_pack.all;
 
 entity hdmi_out is
@@ -45,6 +50,17 @@ entity hdmi_out is
     );
 end hdmi_out;
 
+=======
+entity hdmi_out is
+    port (
+	tmds_in_clk: in std_logic; -- 25 MHz pixel clock single ended
+	tmds_out_clk_p, tmds_out_clk_n: out std_logic; -- output 25 MHz differential
+	tmds_in_rgb: in std_logic_vector(2 downto 0); -- input (250 MHz single ended)
+	tmds_out_rgb_p, tmds_out_rgb_n: out std_logic_vector(2 downto 0) -- output 250 MHz differential
+    );
+end hdmi_out;
+
+>>>>>>> upstream/master:rtl/generic/hdmi_out.vhd
 architecture Behavioral of hdmi_out is
 begin
     -- vendor-independent differential output buffering for HDMI clock and video

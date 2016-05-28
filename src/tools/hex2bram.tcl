@@ -27,6 +27,7 @@
 #
 
 
+<<<<<<< HEAD
 if {$argc == 0} {
     puts "Usage: ./hex2bram.tcl ifile \[ofile\]"
     exit 1
@@ -36,6 +37,14 @@ if {$argc == 0} {
     set ofile [lindex $argv 1]
 }
 
+=======
+if {$argc != 2} {
+    puts "Usage: ./hex2bram.tcl ifile ofile"
+    exit 1
+}
+
+set ofile [lindex $argv 1]
+>>>>>>> upstream/master
 set hexfile [open "[lindex $argv 0]"]
 set linenum 0
 set addr 0

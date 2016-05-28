@@ -56,6 +56,10 @@ entity pid is
 	byte_sel: in std_logic_vector(3 downto 0);
 	bus_in: in std_logic_vector(31 downto 0);
 	bus_out: out std_logic_vector(31 downto 0);
+<<<<<<< HEAD
+=======
+	setpoint: in std_logic_vector(23 downto 0) := (others => '0'); -- external setpoint, added to all PID setpoints
+>>>>>>> upstream/master
 	encoder_a_in:  in  std_logic_vector(C_pids-1 downto 0) := (others => '-');
 	encoder_b_in:  in  std_logic_vector(C_pids-1 downto 0) := (others => '-');
 	encoder_a_out: out std_logic_vector(C_pids-1 downto 0);
@@ -199,7 +203,11 @@ begin
       encoder => encoder(i),
       counter => counter_value(i)
     );
+<<<<<<< HEAD
     error_value(i) <= R(C_registers*i + C_setpoint)(23 downto 0) - counter_value(i);
+=======
+    error_value(i) <= setpoint + R(C_registers*i + C_setpoint)(23 downto 0) - counter_value(i);
+>>>>>>> upstream/master
  
     -- PWM output
     --pwm_compare(i) <= m_k_out(10 downto 0); -- compare value without sign bit of m_k_out

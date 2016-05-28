@@ -17,7 +17,12 @@ main(void)
 {
 	volatile int *mem_base = &_end;
 	volatile int *mem_end;
+<<<<<<< HEAD
 	int i, len, speed, iter, tot_err, a, b, c, d;
+=======
+	int i, len, speed, iter, tot_err;
+	int a = 0, b = 0, c, d;
+>>>>>>> upstream/master
 	int size, tmp, freq_khz, start, end, seed, val;
 	volatile uint8_t *p8;
 	volatile uint16_t *p16;
@@ -61,6 +66,28 @@ again:
 	printf("base %p end %p (size %d.%03d MB)\n", mem_base, mem_end,
 	    size >> 20, ((size & 0xfffff) * 1000) >> 20);
 
+<<<<<<< HEAD
+=======
+	size = 128 * 1024 * 1024;
+	RDTSC(start);
+	for (i = 0; i < size / (512 * 4); i++)
+		for (p32 = (uint32_t *) mem_base;
+		    p32 < (uint32_t *) &mem_base[512];) {
+			val = *p32++; val = *p32++; val = *p32++; val = *p32++;
+			val = *p32++; val = *p32++; val = *p32++; val = *p32++;
+			val = *p32++; val = *p32++; val = *p32++; val = *p32++;
+			val = *p32++; val = *p32++; val = *p32++; val = *p32++;
+		}
+	RDTSC(end);
+	len = (end - start) / freq_khz;
+	speed = size / len;
+	printf("Cache speed: %d MB 32-bit read done in"
+	    " %d.%03d s (%d.%03d MB/s)\n", size / 1024 / 1024,
+	    len / 1000, len % 1000, speed / 1000, speed % 1000);
+
+	size = (int) mem_end - (int) mem_base;
+
+>>>>>>> upstream/master
 	int csum = 0;
 	for (i = 0; i < 32 * 1024 * 1024 / 4; i++) {
 		mem_base[i] = i;
@@ -76,7 +103,11 @@ again:
 		printf("CSUM mismatch: %08x %08x\n", csum, tmp);
 
 	tmp = 0;
+<<<<<<< HEAD
 	for (i = 0; i < 32 * 1024 * 1024 / 4; i++) {
+=======
+	for (i = 0; i < size / 4; i++) {
+>>>>>>> upstream/master
 		a = mem_base[i];
 		b = mem_base[i + 1];
 		if (b != a + 1)

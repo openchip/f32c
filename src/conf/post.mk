@@ -177,6 +177,12 @@ MK_LDFLAGS += ${LDFLAGS}
 # Library construction flags
 MK_ARFLAGS = r
 
+<<<<<<< HEAD
+=======
+# Discard .rel.dyn section which linker may emit in error with -gc-sections
+OBJFLAGS = -R .rel.dyn
+
+>>>>>>> upstream/master
 CC = ${ARCH}-elf-gcc ${MK_CFLAGS} ${MK_STDINC} ${MK_INCLUDES}
 CXX = ${ARCH}-elf-g++ ${MK_CFLAGS} ${MK_STDINC} ${MK_INCLUDES} -fno-rtti -fno-exceptions
 AS = ${ARCH}-elf-gcc ${MK_CFLAGS} ${MK_ASFLAGS} ${MK_INCLUDES}
@@ -218,11 +224,19 @@ BIN = ${PROG}.bin
 HEX = ${PROG}.hex
 
 ${HEX}: ${BIN} Makefile
+<<<<<<< HEAD
 	${OBJCOPY} -O srec ${PROG} ${HEX}
 
 ${BIN}: ${PROG} Makefile
 	${ISA_CHECK} ${ARCH} ${PROG}
 	${OBJCOPY} -O binary ${PROG} ${BIN}
+=======
+	${OBJCOPY} ${OBJFLAGS} -O srec ${PROG} ${HEX}
+
+${BIN}: ${PROG} Makefile
+	${ISA_CHECK} ${ARCH} ${PROG}
+	${OBJCOPY} ${OBJFLAGS} -O binary ${PROG} ${BIN}
+>>>>>>> upstream/master
 
 ${PROG}: ${OBJS} Makefile
 	${LD} -o ${PROG} ${OBJS} ${MK_LIBS}

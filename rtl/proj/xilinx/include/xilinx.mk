@@ -42,7 +42,12 @@ xil_env ?= . $(isedir)/settings32.sh
 openocd_interface ?= interface/altera-usb-blaster.cfg
 xc3sprog_interface ?= xpc
 xc3sprog_device ?= 0
+<<<<<<< HEAD
 jtag_spi_bridge ?= ../include/bscan_xc6s_ftg256_blink.bit.xz
+=======
+jtag_spi_bridge ?= ../../include/bscan_xc6s_ftg256_blink.bit.xz
+mimasv2_device ?= /dev/ttyACM0
+>>>>>>> upstream/master
 flashsize ?= 8192
 bitstream_bin ?= 
 
@@ -95,7 +100,11 @@ junk += *.xrpt
 
 $(project).svf: $(project).bit
 	cp $< default.bit
+<<<<<<< HEAD
 	$(xil_env); impact -batch ../include/bit2svf.ut
+=======
+	$(xil_env); impact -batch ../../include/bit2svf.ut
+>>>>>>> upstream/master
 	mv default.svf $@
 	rm default.bit
 junk += $(project).svf _impactbatch.log
@@ -110,7 +119,11 @@ junk += $(project)_flash.svf
 
 $(project).xsvf: $(project).bit
 	cp $< default.bit
+<<<<<<< HEAD
 	$(xil_env); impact -batch ../include/bit2xsvf.ut
+=======
+	$(xil_env); impact -batch ../../include/bit2xsvf.ut
+>>>>>>> upstream/master
 	mv default.xsvf $@
 	rm default.bit
 junk += $(project).xsvf
@@ -137,6 +150,12 @@ xc3sprog_flash: $(project).bit
 	xc3sprog -c $(xc3sprog_interface) -p $(xc3sprog_device) -I $(project).bit
 	xc3sprog -c $(xc3sprog_interface) -p $(xc3sprog_device) -R
 
+<<<<<<< HEAD
+=======
+mimasv2_flash: $(project).bin
+	MimasV2Config.py $(mimasv2_device) $(project).bin
+
+>>>>>>> upstream/master
 program: $(project).svf
 	openocd --file=$(openocd_interface) --file=$(project).ocd
 

@@ -1,0 +1,7 @@
+###IOSet List 6
+set_io CLK_12MHZ R9
+set_io LED[1] C8
+set_io LED[2] F7
+set_io LED[3] K9
+set_io RS232_RX T9
+set_io RS232_TX T10

@@ -32,6 +32,10 @@ use IEEE.MATH_REAL.ALL;
 
 use work.f32c_pack.all;
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> upstream/master
 entity glue_bram is
     generic (
 	C_clk_freq: integer;
@@ -57,9 +61,12 @@ entity glue_bram is
 	C_result_forwarding: boolean := true;
 	C_load_aligner: boolean := true;
 
+<<<<<<< HEAD
 	-- FPGA platform-specific options
 	C_register_technology: string := "generic";
 
+=======
+>>>>>>> upstream/master
 	-- Negatively influences timing closure, hence disabled
 	C_movn_movz: boolean := false;
 
@@ -67,7 +74,12 @@ entity glue_bram is
 	C_debug: boolean := false;
 
 	-- SoC configuration options
+<<<<<<< HEAD
 	C_mem_size: integer := 16;	-- in KBytes
+=======
+	C_bram_size: integer := 16;	-- in KBytes
+	C_boot_spi: boolean := false;
+>>>>>>> upstream/master
 	C_sio: integer := 1;
 	C_sio_init_baudrate: integer := 115200;
 	C_sio_fixed_baudrate: boolean := false;
@@ -78,12 +90,15 @@ entity glue_bram is
 	C_simple_in: integer range 0 to 128 := 32;
 	C_simple_out: integer range 0 to 128 := 32;
 	C_gpio: integer range 0 to 128 := 32;
+<<<<<<< HEAD
 	C_pids: integer range 0 to 8 := 0; -- number of pids 0:disable, 2-8:enable
 	C_pid_simulator: std_logic_vector(7 downto 0) := (others => '0'); -- for each pid choose simulator/real
 	C_pid_prescaler: integer range 10 to 26 := 18; -- control loop frequency f_clk/2^prescaler
 	C_pid_precision: integer range 0 to 8 := 1; -- fixed point PID precision
         C_pid_pwm_bits: integer range 11 to 32 := 12; -- PWM output frequency f_clk/2^pwmbits (min 11 => 40kHz @ 81.25MHz)
         C_pid_fp: integer range 0 to 26 := 8; -- loop frequency value for pid calculation, use 26-C_pid_prescaler
+=======
+>>>>>>> upstream/master
 	C_timer: boolean := true
     );
     port (
@@ -94,13 +109,17 @@ entity glue_bram is
 	spi_miso: in std_logic_vector(C_spi - 1 downto 0);
 	simple_in: in std_logic_vector(31 downto 0);
 	simple_out: out std_logic_vector(31 downto 0);
+<<<<<<< HEAD
 	pid_encoder_a, pid_encoder_b: in  std_logic_vector(C_pids-1 downto 0) := (others => '-');
 	pid_bridge_f,  pid_bridge_r:  out std_logic_vector(C_pids-1 downto 0);
+=======
+>>>>>>> upstream/master
 	gpio: inout std_logic_vector(127 downto 0)
     );
 end glue_bram;
 
 architecture Behavioral of glue_bram is
+<<<<<<< HEAD
     signal imem_addr: std_logic_vector(31 downto 2);
     signal imem_data_read: std_logic_vector(31 downto 0);
     signal imem_addr_strobe, imem_data_ready: std_logic;
@@ -113,6 +132,23 @@ architecture Behavioral of glue_bram is
     signal io_addr_strobe: std_logic;
     signal io_addr: std_logic_vector(11 downto 2);
     signal intr: std_logic_vector(5 downto 0); -- interrupt
+=======
+
+    -- signals to / from f32c cores(s)
+    signal intr: std_logic_vector(5 downto 0);
+    signal imem_addr, dmem_addr: std_logic_vector(31 downto 2);
+    signal imem_addr_strobe, dmem_addr_strobe, dmem_write: std_logic;
+    signal imem_data_ready, dmem_data_ready: std_logic;
+    signal dmem_byte_sel: std_logic_vector(3 downto 0);
+    signal cpu_to_dmem: std_logic_vector(31 downto 0);
+    signal io_to_cpu, final_to_cpu_d: std_logic_vector(31 downto 0);
+    signal io_addr_strobe: std_logic;
+    signal io_addr: std_logic_vector(11 downto 2);
+
+    -- Block RAM
+    signal bram_i_to_cpu, bram_d_to_cpu: std_logic_vector(31 downto 0);
+    signal bram_i_ready, bram_d_ready, dmem_bram_enable: std_logic;
+>>>>>>> upstream/master
 
     -- Timer
     signal from_timer: std_logic_vector(31 downto 0);
@@ -129,6 +165,7 @@ architecture Behavioral of glue_bram is
     signal gpio_intr: std_logic_vector(C_gpios-1 downto 0);
     signal gpio_intr_joint: std_logic := '0';
 
+<<<<<<< HEAD
     -- PID
     constant C_pid: boolean := C_pids >= 2; -- minimum is 2 PIDs, otherwise no PID
     signal from_pid: std_logic_vector(31 downto 0);
@@ -140,6 +177,8 @@ architecture Behavioral of glue_bram is
     signal pid_encoder_b_out: std_logic_vector(C_pids-1 downto 0);
     constant C_pids_bits: integer := integer(floor((log2(real(C_pids)+0.001))+0.5));
 
+=======
+>>>>>>> upstream/master
     -- Serial I/O (RS232)
     type from_sio_type is array (0 to C_sio - 1) of
       std_logic_vector(31 downto 0);
@@ -180,18 +219,29 @@ begin
 	C_result_forwarding => C_result_forwarding,
 	C_load_aligner => C_load_aligner, C_full_shifter => C_full_shifter,
 	C_ll_sc => C_ll_sc, C_exceptions => C_exceptions,
+<<<<<<< HEAD
 	C_register_technology => C_register_technology,
+=======
+>>>>>>> upstream/master
 	-- debugging only
 	C_debug => C_debug
     )
     port map (
 	clk => clk, reset => sio_break_internal(0), intr => intr,
+<<<<<<< HEAD
 	imem_addr => imem_addr, imem_data_in => imem_data_read,
+=======
+	imem_addr => imem_addr, imem_data_in => bram_i_to_cpu,
+>>>>>>> upstream/master
 	imem_addr_strobe => imem_addr_strobe,
 	imem_data_ready => imem_data_ready,
 	dmem_addr_strobe => dmem_addr_strobe, dmem_addr => dmem_addr,
 	dmem_write => dmem_write, dmem_byte_sel => dmem_byte_sel,
+<<<<<<< HEAD
 	dmem_data_in => final_to_cpu, dmem_data_out => cpu_to_dmem,
+=======
+	dmem_data_in => final_to_cpu_d, dmem_data_out => cpu_to_dmem,
+>>>>>>> upstream/master
 	dmem_data_ready => dmem_data_ready,
 	snoop_cycle => '0', snoop_addr => "------------------------------",
 	flush_i_line => open, flush_d_line => open,
@@ -205,13 +255,22 @@ begin
 	debug_debug => debug_debug,
 	debug_active => debug_active
     );
+<<<<<<< HEAD
     final_to_cpu <= io_to_cpu when io_addr_strobe = '1' else dmem_to_cpu;
+=======
+    final_to_cpu_d <= io_to_cpu when io_addr_strobe = '1' else bram_d_to_cpu;
+>>>>>>> upstream/master
     intr <= "00" & gpio_intr_joint & timer_intr & from_sio(0)(8) & '0';
     io_addr_strobe <= dmem_addr_strobe when dmem_addr(31 downto 30) = "11"
       else '0';
     io_addr <= '0' & dmem_addr(10 downto 2);
+<<<<<<< HEAD
     imem_data_ready <= '1';
     dmem_data_ready <= '1';
+=======
+    imem_data_ready <= bram_i_ready;
+    dmem_data_ready <= bram_d_ready when dmem_addr(31) = '0' else '1';
+>>>>>>> upstream/master
 
     -- RS232 sio
     G_sio: for i in 0 to C_sio - 1 generate
@@ -299,7 +358,10 @@ begin
     process(io_addr, R_simple_in, R_simple_out, from_sio, from_timer, from_gpio)
 	variable i: integer;
     begin
+<<<<<<< HEAD
 	io_to_cpu <= (others => '-');
+=======
+>>>>>>> upstream/master
 	case conv_integer(io_addr(11 downto 4)) is
 	when 16#00# to 16#07# =>
 	    for i in 0 to C_gpios - 1 loop
@@ -323,6 +385,7 @@ begin
 		    io_to_cpu <= from_spi(i);
 		end if;
 	    end loop;
+<<<<<<< HEAD
 	when 16#58# to 16#5B# => -- address 0xFFFFFD80
 	    if C_pid then
 		io_to_cpu <= from_pid;
@@ -339,6 +402,20 @@ begin
 		if conv_integer(io_addr(3 downto 2)) = i then
 		    io_to_cpu(C_simple_out - i * 32 - 1 downto i * 32) <=
 		      R_simple_out(C_simple_out - i * 32 - 1 downto i * 32);
+=======
+	when 16#70#  =>
+	    for i in 0 to (C_simple_in + 31) / 32 - 1 loop
+		if conv_integer(io_addr(3 downto 2)) = i then
+		    io_to_cpu(i * 32 + 31 downto i * 32) <=
+		      R_simple_in(i * 32 + 31 downto i * 32);
+		end if;
+	    end loop;
+	when 16#71#  =>
+	    for i in 0 to (C_simple_out + 31) / 32 - 1 loop
+		if conv_integer(io_addr(3 downto 2)) = i then
+		    io_to_cpu(i * 32 + 31 downto i * 32) <=
+		      R_simple_out(i * 32 + 31 downto i * 32);
+>>>>>>> upstream/master
 		end if;
 	    end loop;
 	when others  =>
@@ -369,6 +446,7 @@ begin
       -- gpio_intr_joint <= '0' when conv_integer(gpio_intr) = 0 else '1';
     end generate;
 
+<<<<<<< HEAD
     -- PID
     G_pid:
     if C_pid generate
@@ -403,6 +481,8 @@ begin
     pid_bridge_r <= pid_bridge_r_out;
     end generate;
 
+=======
+>>>>>>> upstream/master
     -- Timer
     G_timer:
     if C_timer generate
@@ -426,6 +506,7 @@ begin
     end generate;
 
     -- Block RAM
+<<<<<<< HEAD
     dmem_bram_write <=
       dmem_addr_strobe and dmem_write when dmem_addr(31) /= '1' else '0';
     G_bram_mi32_el:
@@ -468,6 +549,24 @@ begin
     );
     end generate;
 
+=======
+    dmem_bram_enable <= dmem_addr_strobe when dmem_addr(31) /= '1' else '0';
+    bram: entity work.bram
+    generic map (
+	C_bram_size => C_bram_size,
+	C_arch => C_arch,
+	C_big_endian => C_big_endian,
+	C_boot_spi => C_boot_spi
+    )
+    port map (
+	clk => clk, imem_addr_strobe => imem_addr_strobe,
+	imem_addr => imem_addr, imem_data_out => bram_i_to_cpu,
+	imem_data_ready => bram_i_ready, dmem_data_ready => bram_d_ready,
+	dmem_addr_strobe => dmem_bram_enable, dmem_write => dmem_write,
+	dmem_byte_sel => dmem_byte_sel, dmem_addr => dmem_addr,
+	dmem_data_out => bram_d_to_cpu, dmem_data_in => cpu_to_dmem
+    );
+>>>>>>> upstream/master
 
     -- Debugging SIO instance
     G_debug_sio:
